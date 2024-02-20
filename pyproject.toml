@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "djraj-proj"
+version = "0.1.0"
+description = "Introduction to Software Engineering Project"
+authors = ["Aurora McGinnis <amcginnis@unomaha.edu>", "Jerron Pierro <jpierro@unomaha.edu>", "Rashawn Thompson <rashawnthompson@unomaha.edu>", "Deepak Sai Guntreddi <dguntreddi@unomaha.edu>", "Jeevan Kumar Reddy Papireddy <jpapireddy@unomaha.edu>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = "^0.109.2"
+uvicorn = "^0.27.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
