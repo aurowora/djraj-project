@@ -11,6 +11,12 @@ from contextlib import asynccontextmanager, suppress
 
 @asynccontextmanager
 async def lifespan(a: FastAPI):
+    """
+    This function contains code that should be run during startup (before the yield)
+    and code that should be run during shutdown (after the yield).
+
+    It is called automatically by FastAPI
+    """
     # force autocommit and charset
     a.state.cfg.db["autocommit"] = True
     a.state.cfg.db["charset"] = "utf8mb4"
