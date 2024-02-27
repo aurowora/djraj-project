@@ -38,6 +38,17 @@ Before starting the application, ensure that the file exists. You can paste the 
 # Address and port to listen on.
 listen_ip = "127.0.0.1"
 listen_port = 8080
+
+[db]
+# The DB server to connect to
+host = "IP_OR_HOSTNAME_HERE"
+# The TCP/IP port to use to connect
+port = 3306
+# DB username and pw
+user = "forums"
+password = "PASSWORDHERE"
+# the name of the mysql database to use
+db = "forums"
 ```
 
 ## Running the Application
