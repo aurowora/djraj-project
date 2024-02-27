@@ -6,6 +6,7 @@ import uvicorn
 
 app = FastAPI()
 
+
 @app.get('/')
 async def hello(name: str = "world"):
     return {'msg': f'Hello, {name}!'}
