@@ -7,6 +7,9 @@ class Config(BaseModel):
     listen_ip: str = Field(default='127.0.0.1')
     # The port to listen on.
     listen_port: int = Field(default=8080, gt=0, le=65565)
+    # The database configuration. This attributes are passed to
+    # aiomysql's connect. See https://aiomysql.readthedocs.io/en/stable/connection.html#connection
+    db: dict = Field(default_factory=dict)
 
 
 def load_config() -> Config:
