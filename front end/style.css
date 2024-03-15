@@ -1,0 +1,180 @@
+/* General styles */
+body {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+    background-color: #f9f9f9;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
+/* Header styles */
+header {
+    background-color: #007bff;
+    color: #fff;
+    padding: 20px 0;
+    text-align: center;
+    position: relative; /* Position relative for logo positioning */
+}
+
+header h1 {
+    margin: 0;
+}
+
+/* Logo styles */
+.logo-container {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+}
+
+.logo {
+    width: 100px; /* Adjust as needed */
+    height: auto;
+}
+
+/* Button styles */
+#create-topic-btn {
+    background-color: #28a745;
+    color: #fff;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+#create-topic-btn:hover {
+    background-color: #218838;
+}
+
+/* Navigation styles */
+nav {
+    background-color: #e9ecef;
+    padding: 10px 20px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+nav form {
+    display: flex;
+    align-items: center;
+}
+
+nav input[type="text"] {
+    padding: 8px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+}
+
+nav button {
+    padding: 8px 20px;
+    background-color: #007bff;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+nav button:hover {
+    background-color: #0056b3;
+}
+
+/* Main content styles */
+main {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 5px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Footer styles */
+footer {
+    background-color: #343a40;
+    color: #fff;
+    text-align: center;
+    padding: 10px 0;
+}
+
+/* Topics section styles */
+#topics-section {
+    margin-top: 20px;
+}
+
+.topic {
+    background-color: #f8f9fa;
+    padding: 15px;
+    margin-bottom: 15px;
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.topic h3 {
+    margin: 0;
+}
+
+.topic p {
+    margin-top: 10px;
+    color: #6c757d;
+}
+
+/* Login and signup section styles */
+#login-section,
+#signup-section {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+#login-section h2,
+#signup-section h2 {
+    margin-top: 0;
+}
+
+#login-form,
+#signup-form {
+    margin-top: 20px;
+}
+
+#login-form label,
+#signup-form label {
+    display: block;
+    margin-bottom: 5px;
+}
+
+#login-form input,
+#signup-form input {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+
+#login-form button,
+#signup-form button {
+    width: 100%;
+    padding: 10px;
+    background-color: #007bff;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+#login-form button:hover,
+#signup-form button:hover {
+    background-color: #0056b3;
+}
+
+.error-message {
+    color: red;
+    margin-top: 10px;
+}
