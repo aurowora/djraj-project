@@ -8,6 +8,13 @@ from datetime import datetime
 
 
 class Topic(BaseModel):
+    """
+    Topic represents a Topic in the database, which is a top level post created by some User (the author).
+
+    This is generally returned by the get_* methods of the TopicRepository. When constructing a Topic, the topic_id
+    and created_at fields are expected to be None so that the database may populate them. To persist a Topic to the db,
+    use the TopicRepository's put_topic() method.
+    """
     topic_id: Optional[int]
     author_id: int
     title: str
@@ -21,10 +28,16 @@ def _maybe_row_to_topic(row: Optional[dict]) -> Optional[Topic]:
 
 
 class TopicRepository:
+    """
+    TopicRepository implements CRUD operations for Topics.
+    """
     def __init__(self, db: Pool):
         self.__db = db
 
     async def get_topic_by_id(self, topic_id: int) -> Optional[Topic]:
+        """
+        Returns the topic with the given topic_id, or none if there is no such topic.
+        """
         async with self.__db.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
@@ -33,6 +46,10 @@ class TopicRepository:
                 return _maybe_row_to_topic(await cur.fetchone())
 
     async def get_topics_of_author(self, author_id: int, limit: int = 20, skip: int = 0) -> AsyncGenerator[Topic, None]:
+        """
+        Returns a generator over all topics from the given author, sorted by the creation time. This will return
+        up to `limit` topics with an offset of `skip` from the beginning of the sorted topic set.
+        """
         async with self.__db.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
@@ -42,6 +59,10 @@ class TopicRepository:
                     yield _maybe_row_to_topic(row)  # is never None
 
     async def search_topics(self, query: str, limit: int = 20, skip: int = 0) -> AsyncGenerator[Topic, None]:
+        """
+        Returns a generator over all topics that contain the phrase in the query, sorted by the creation time.
+        This will return up to `limit` topics with an offset of `skip` from the beginning of the sorted topic set.
+        """
         query = f'%{mysql_escape_like(query)}%'
 
         async with self.__db.acquire() as conn:
@@ -54,6 +75,13 @@ class TopicRepository:
                     yield _maybe_row_to_topic(row)  # is never None
 
     async def put_topic(self, topic: Topic) -> int:
+        """
+        If the topic_id is None, this will insert the Topic into the database.
+
+        If the topic_id is not None, this will update the existing topic.
+
+        Returns the topic_id of the affected item.
+        """
         async with self.__db.acquire() as conn:
             async with conn.cursor() as cur:
                 if topic.topic_id is None:
