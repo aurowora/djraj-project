@@ -1,11 +1,10 @@
+from datetime import datetime
 from typing import Optional, AsyncGenerator
-
-from forums.db import mysql_date_to_python, mysql_escape_like
 
 from aiomysql import Pool
 from pydantic import BaseModel
-from datetime import datetime
 
+from forums.db import mysql_date_to_python, mysql_escape_like
 
 # Bitflags for Topic
 TOPIC_IS_HIDDEN = 1 << 0
@@ -37,6 +36,7 @@ class TopicRepository:
     """
     TopicRepository implements CRUD operations for Topics.
     """
+
     def __init__(self, db: Pool):
         self.__db = db
 
@@ -51,7 +51,8 @@ class TopicRepository:
                     (topic_id,))
                 return _maybe_row_to_topic(await cur.fetchone())
 
-    async def get_topics_of_author(self, author_id: int, limit: int = 20, skip: int = 0, include_hidden=False) -> AsyncGenerator[Topic, None]:
+    async def get_topics_of_author(self, author_id: int, limit: int = 20, skip: int = 0, include_hidden=False) -> \
+    AsyncGenerator[Topic, None]:
         """
         Returns a generator over all topics from the given author, sorted by the creation time. This will return
         up to `limit` topics with an offset of `skip` from the beginning of the sorted topic set.
@@ -64,7 +65,8 @@ class TopicRepository:
                 while row := await cur.fetchone():
                     yield _maybe_row_to_topic(row)  # is never None
 
-    async def search_topics(self, query: str, limit: int = 20, skip: int = 0, include_hidden=False) -> AsyncGenerator[Topic, None]:
+    async def search_topics(self, query: str, limit: int = 20, skip: int = 0, include_hidden=False) -> AsyncGenerator[
+        Topic, None]:
         """
         Returns a generator over all topics that contain the phrase in the query, sorted by the creation time.
         This will return up to `limit` topics with an offset of `skip` from the beginning of the sorted topic set.
@@ -75,8 +77,7 @@ class TopicRepository:
             async with conn.cursor() as cur:
                 await cur.execute(
                     "SELECT * FROM threadsTable WHERE title LIKE %s ESCAPE '\\\\' OR content LIKE %s ESCAPE '\\\\' ORDER BY createdAt DESC LIMIT %s OFFSET %s;" if include_hidden else f"SELECT * FROM threadsTable WHERE (title LIKE %s ESCAPE '\\\\' OR content LIKE %s ESCAPE '\\\\') AND (flags & {TOPIC_IS_HIDDEN}) = 0 ORDER BY createdAt DESC LIMIT %s OFFSET %s;",
-                    (query, query, limit, skip)
-                )
+                    (query, query, limit, skip))
                 while row := await cur.fetchone():
                     yield _maybe_row_to_topic(row)  # is never None
 
@@ -92,8 +93,9 @@ class TopicRepository:
             async with conn.cursor() as cur:
                 if topic.topic_id is None:
                     # createdAt set by default func
-                    await cur.execute('INSERT INTO threadsTable (userID, title, content, flags) VALUES (%s, %s, %s, %s);',
-                                      (topic.author_id, topic.title, topic.content, topic.flags))
+                    await cur.execute(
+                        'INSERT INTO threadsTable (userID, title, content, flags) VALUES (%s, %s, %s, %s);',
+                        (topic.author_id, topic.title, topic.content, topic.flags))
                     topic.topic_id = cur.lastrowid
                     return topic.topic_id
                 else:

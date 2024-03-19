@@ -1,10 +1,10 @@
 from datetime import datetime
 from typing import Optional, AsyncGenerator
-from aiomysql import Pool
-from forums.db import mysql_date_to_python
 
+from aiomysql import Pool
 from pydantic import BaseModel
 
+from forums.db import mysql_date_to_python
 
 # Post flags
 POST_IS_HIDDEN = 1 << 0
@@ -36,7 +36,8 @@ class PostRepository:
                     (post_id,))
                 return _maybe_row_to_post(await cur.fetchone())
 
-    async def get_posts_of_topic(self, topic_id: int, limit: int = 20, skip: int = 0, include_hidden=False) -> AsyncGenerator[Post, None]:
+    async def get_posts_of_topic(self, topic_id: int, limit: int = 20, skip: int = 0, include_hidden=False) -> \
+    AsyncGenerator[Post, None]:
         async with self.__db.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
@@ -50,8 +51,9 @@ class PostRepository:
             async with conn.cursor() as cur:
                 if post.post_id is None:
                     # createdAt set by default func
-                    await cur.execute('INSERT INTO postsTable (threadID, userID, content, flags) VALUES (%s, %s, %s, %s);',
-                                      (post.topic_id, post.author_id, post.content))
+                    await cur.execute(
+                        'INSERT INTO postsTable (threadID, userID, content, flags) VALUES (%s, %s, %s, %s);',
+                        (post.topic_id, post.author_id, post.content))
                     post.post_id = cur.lastrowid
                     return post.post_id
                 else:
