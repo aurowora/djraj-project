@@ -8,6 +8,8 @@ from fastapi import FastAPI
 import uvicorn
 from contextlib import asynccontextmanager, suppress
 
+from forums.db.users import UserRepository, User
+
 
 @asynccontextmanager
 async def lifespan(a: FastAPI):
