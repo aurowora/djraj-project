@@ -4,7 +4,7 @@ from typing import Optional, AsyncGenerator
 from aiomysql import Pool
 from pydantic import BaseModel
 
-from forums.db import mysql_date_to_python
+from forums.db.utils import mysql_date_to_python
 
 # Post flags
 POST_IS_HIDDEN = 1 << 0

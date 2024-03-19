@@ -4,7 +4,7 @@ from typing import Optional, AsyncGenerator
 from aiomysql import Pool
 from pydantic import BaseModel
 
-from forums.db import mysql_date_to_python, mysql_escape_like
+from forums.db.utils import mysql_date_to_python, mysql_escape_like
 
 # Bitflags for Topic
 TOPIC_IS_HIDDEN = 1 << 0
