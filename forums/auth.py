@@ -14,14 +14,14 @@ from forums.config import LoginConfig
 import http.cookies
 
 
-async def hash_password(password: str) -> str:
+async def _hash_password(password: str) -> str:
     """
     Produces a password hash for the given password.
     """
     return await spawn_blocking(PasswordHasher().hash, password)
 
 
-async def verify_password(password: str, hashed: str) -> bool:
+async def _verify_password(password: str, hashed: str) -> bool:
     """
     Determines whether the password matches the given password hash.
 
