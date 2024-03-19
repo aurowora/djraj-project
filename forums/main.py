@@ -7,6 +7,7 @@ from forums.config import load_config
 from fastapi import FastAPI
 import uvicorn
 from contextlib import asynccontextmanager, suppress
+from routes import router
 
 
 @asynccontextmanager
@@ -34,6 +35,7 @@ async def lifespan(a: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+app.include_router(router())
 cfg = load_config()
 app.state.cfg = cfg
 

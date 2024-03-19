@@ -2,6 +2,7 @@ from typing import Optional
 
 from aiomysql import Pool
 from pydantic import BaseModel
+from fastapi import Request
 
 
 class User(BaseModel):
@@ -12,10 +13,11 @@ class User(BaseModel):
     user_id: Optional[int]
     username: str
     pw_hash: str
+    flags: int
 
 
 def _maybe_row_to_user(row: Optional[dict]) -> Optional[User]:
-    return User(user_id=row["id"], username=row["MYUSER"], pw_hash=row["PASSWORD"]) if row is not None else None
+    return User(user_id=row["id"], username=row["MYUSER"], pw_hash=row["PASSWORD"], flags=row["flags"]) if row is not None else None
 
 
 class UserRepository:
@@ -28,7 +30,7 @@ class UserRepository:
         """
         async with self.__db.acquire() as conn:
             async with conn.cursor() as cur:
-                await cur.execute('SELECT `id`, `MYUSER`, `PASSWORD` FROM `loginTable` WHERE `id` = %s;', (user_id,))
+                await cur.execute('SELECT * FROM `loginTable` WHERE `id` = %s;', (user_id,))
                 return _maybe_row_to_user(await cur.fetchone())
 
     async def get_user_by_name(self, username: str) -> Optional[User]:
@@ -37,7 +39,7 @@ class UserRepository:
         """
         async with self.__db.acquire() as conn:
             async with conn.cursor() as cur:
-                await cur.execute('SELECT `id`, `MYUSER`, `PASSWORD` FROM `loginTable` WHERE `MYUSER` = %s;', (username,))
+                await cur.execute('SELECT * FROM `loginTable` WHERE `MYUSER` = %s;', (username,))
                 return _maybe_row_to_user(await cur.fetchone())
 
     async def put_user(self, user: User) -> int:
@@ -51,12 +53,16 @@ class UserRepository:
             async with conn.cursor() as cur:
                 if user.user_id is None:
                     # insert
-                    await cur.execute('INSERT INTO `loginTable` (`MYUSER`, `PASSWORD`) VALUES (%s, %s);', (user.username, user.pw_hash))
+                    await cur.execute('INSERT INTO `loginTable` (`MYUSER`, `PASSWORD`, `flags`) VALUES (%s, %s, %s);', (user.username, user.pw_hash, user.flags))
                     user.user_id = cur.lastrowid
                     return user.user_id
                 else:
                     # update
-                    num_rows = await cur.execute('UPDATE `loginTable` SET `MYUSER` = %s, `PASSWORD` = %s WHERE `id` = %s LIMIT 1;', (user.username, user.pw_hash, user.user_id))
+                    num_rows = await cur.execute('UPDATE `loginTable` SET `MYUSER` = %s, `PASSWORD` = %s, `flags` = %s WHERE `id` = %s LIMIT 1;', (user.username, user.pw_hash, user.flags, user.user_id))
                     if num_rows < 1:
                         raise KeyError(f'failed updating user {user.username}: there is no such user with user_id {user.user_id}')
                     return user.user_id
+
+
+def get_user_repo(req: Request) -> UserRepository:
+    return UserRepository(req.app.state.db)
