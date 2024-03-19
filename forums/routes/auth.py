@@ -30,7 +30,7 @@ class RequestLogin(BaseModel):
 
 @router.post('/login')
 async def login(req: Request, login_params: RequestLogin, user_repo: UserRepository = Depends(get_user_repo)) -> RedirectResponse:
-    if not is_valid_username(login_params.username) or not (0 < len(login_params.password) <= 72):
+    if not _is_valid_username(login_params.username) or not (0 < len(login_params.password) <= 72):
         return RedirectResponse(url=f'/login?%s' % urlencode({'error': 'invalid username and/or password'}), headers={'Cache-Control': 'no-store'})
 
     # TODO, check CSRF token
@@ -53,7 +53,7 @@ async def login(req: Request, login_params: RequestLogin, user_repo: UserReposit
 __VALIDATE_USERNAME = re.compile(r'^[0-9A-Za-z_]+$', flags=re.RegexFlag.UNICODE)
 
 
-def is_valid_username(username: str) -> bool:
+def _is_valid_username(username: str) -> bool:
     return (0 < len(username) <= 64) and __VALIDATE_USERNAME.match(username) is not None
 
 
