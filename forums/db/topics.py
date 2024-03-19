@@ -36,7 +36,7 @@ class TopicRepository:
         async with self.__db.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "SELECT threadID, userID, title, content, createdAt FROM threadsTable WHERE authorID = %s ORDER BY title ASC LIMIT %s OFFSET %s;",
+                    "SELECT threadID, userID, title, content, createdAt FROM threadsTable WHERE authorID = %s ORDER BY createdAt DESC LIMIT %s OFFSET %s;",
                     (author_id, limit, skip))
                 while row := await cur.fetchone():
                     yield _maybe_row_to_topic(row)  # is never None
@@ -47,7 +47,7 @@ class TopicRepository:
         async with self.__db.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "SELECT threadID, userID, title, content, createdAt FROM threadsTable WHERE title LIKE %s ESCAPE '\\\\' OR content LIKE %s ESCAPE '\\\\' ORDER BY title ASC LIMIT %s OFFSET %s;",
+                    "SELECT threadID, userID, title, content, createdAt FROM threadsTable WHERE title LIKE %s ESCAPE '\\\\' OR content LIKE %s ESCAPE '\\\\' ORDER BY createdAt DESC LIMIT %s OFFSET %s;",
                     (query, query, limit, skip)
                 )
                 while row := await cur.fetchone():
