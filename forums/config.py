@@ -6,6 +6,8 @@ import os, tomllib
 
 class LoginConfig(BaseModel):
     # The secret key to use for signing session cookies
+    # This should be a longish random value. The security of the login system depends on
+    # the security of this value.
     secret: str
     # The name of the cookie to use
     cookie_name: str = Field(default='auth')
