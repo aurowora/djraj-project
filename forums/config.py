@@ -1,5 +1,26 @@
+from typing import Optional
+
 from pydantic import BaseModel, Field
 import os, tomllib
+
+
+class LoginConfig(BaseModel):
+    # The secret key to use for signing session cookies
+    secret: str
+    # The name of the cookie to use
+    cookie_name: str = Field(default='auth')
+    # The domain attribute to use for the cookie
+    cookie_domain: str = Field(default='localhost')
+    # The path attribute to use for the cookie
+    cookie_path: Optional[str] = Field(default=None)
+    # Whether the secure attribute is set on the cookie
+    cookie_secure: bool = Field(default=True)
+    # Whether the httpOnly attribute is set on the cookie
+    cookie_http_only: bool = Field(default=True)
+    # Which same site value to use for the cookie. Is one of: strict, lax, or none
+    cookie_same_site: str = Field(default="strict", pattern="^(strict|lax|none)$")
+    # How long the auth cookie (and therefore the user session) should live
+    login_ttl: int = Field(default=60 * 60 * 24 * 7, gt=60)
 
 
 class Config(BaseModel):
@@ -10,6 +31,8 @@ class Config(BaseModel):
     # The database configuration. This attributes are passed to
     # aiomysql's connect. See https://aiomysql.readthedocs.io/en/stable/connection.html#connection
     db: dict = Field(default_factory=dict)
+    # Configures authentication
+    login: LoginConfig
 
 
 def load_config() -> Config:
