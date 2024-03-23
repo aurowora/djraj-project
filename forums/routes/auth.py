@@ -166,7 +166,7 @@ async def register(req: Request, register_params: Annotated[RequestRegister, For
 
     if MIN_PASS_SIZE <= len(register_params.password) <= 72:
         raise HTTPException(status_code=status.HTTP_303_SEE_OTHER, headers={'Location': '/login?%s' % urlencode(
-            {'error': 'the provided password is not valid. Passwords must be between 8 and 72 characters (inclusive)',
+            {'error': f'the provided password is not valid. Passwords must be between {MIN_PASS_SIZE} and 72 characters (inclusive)',
              'Cache-Control': 'no-store'})})
 
     csrf_verify(req, register_params.csrf_token)
