@@ -24,6 +24,9 @@ from forums.db.users import UserRepository, get_user_repo, User
 
 router = APIRouter()
 
+# This must be at least 1 for technical reasons. Should be more for security reasons
+MIN_PASS_SIZE = 8
+
 _LOGIN_AUD = "djraj_proj.forums.auth"
 
 
@@ -82,7 +85,7 @@ class RequestLogin(BaseModel):
 @router.post('/login')
 async def login(req: Request, login_params: Annotated[RequestLogin, Form()],
                 user_repo: UserRepository = Depends(get_user_repo)) -> RedirectResponse:
-    if not _is_valid_username(login_params.username) or not (0 < len(login_params.password) <= 72):
+    if not is_valid_username(login_params.username) or not (MIN_PASS_SIZE <= len(login_params.password) <= 72):
         return RedirectResponse(url=f'/login?%s' % urlencode({'error': 'invalid username and/or password'}),
                                 headers={'Cache-Control': 'no-store'})
 
@@ -129,7 +132,9 @@ async def current_user(req: Request, user_repo: UserRepository = Depends(get_use
     except (KeyError, InvalidTokenError) as e:
         # not logged in or login cookie failed validation
         raise HTTPException(status_code=status.HTTP_303_SEE_OTHER,
-                            headers={'Location': '/login?%s' % urlencode({'error': 'this route requires authentication. Please sign in to continue'}), 'Cache-Control': 'no-store'},
+                            headers={'Location': '/login?%s' % urlencode(
+                                {'error': 'this route requires authentication. Please sign in to continue'}),
+                                     'Cache-Control': 'no-store'},
                             detail='This route requires authentication.') from e
 
 
@@ -144,11 +149,49 @@ def whoami(user: User = Depends(current_user)) -> WhoAmIReply:
     return WhoAmIReply(user_id=user.user_id, username=user.username, display_name=user.display_name)
 
 
+class RequestRegister(BaseModel):
+    display_name: str
+    username: str
+    password: str
+    csrf_token: str
+
+
+@router.post('/register')
+async def register(req: Request, register_params: Annotated[RequestRegister, Form()],
+                   user_repo: UserRepository = Depends(get_user_repo)):
+    if not is_valid_username(register_params.username):
+        raise HTTPException(status_code=status.HTTP_303_SEE_OTHER, headers={'Location': '/login?%s' % urlencode({
+            'error': 'the provided username is not valid. Usernames may only contain alphanumeric symbols and the underscore',
+            'Cache-Control': 'no-store'})})
+
+    if MIN_PASS_SIZE <= len(register_params.password) <= 72:
+        raise HTTPException(status_code=status.HTTP_303_SEE_OTHER, headers={'Location': '/login?%s' % urlencode(
+            {'error': 'the provided password is not valid. Passwords must be between 8 and 72 characters (inclusive)',
+             'Cache-Control': 'no-store'})})
+
+    csrf_verify(req, register_params.csrf_token)
+
+    hashed_pw = await _hash_password(register_params.password)
+    new_user = User(username=register_params.username,
+                    password=hashed_pw,
+                    display_name=register_params.display_name,
+                    flags=0,
+                    user_id=None)
+
+    await user_repo.put_user(new_user)
+
+    # Register OK, log them in
+    exp = datetime.now(tz=timezone.utc) + timedelta(seconds=req.app.state.cfg.login.login_ttl)
+    jwt_val = _create_login_jwt(req.app.state.cfg.login.secret, new_user.username, exp)
+    cval = _create_cookie(req.app.state.cfg.login, jwt_val, exp)
+
+    return RedirectResponse(url='/', headers={'Set-Cookie': cval, 'Cache-Control': 'no-store'})
+
+
 __VALIDATE_USERNAME = re.compile(r'^[0-9A-Za-z_]+$', flags=re.RegexFlag.UNICODE)
-
-
-def _is_valid_username(username: str) -> bool:
-    return (0 < len(username) <= 64) and __VALIDATE_USERNAME.match(username) is not None
+__VALIDATE_DISPLAY_NAME = re.compile(r'^[A-Za-z0-9_ ]+$', flags=re.RegexFlag.UNICODE)
+is_valid_display_name = lambda disp: (0 < len(disp) < 64) and __VALIDATE_DISPLAY_NAME.match(disp) is not None
+is_valid_username = lambda username: (0 < len(username) <= 64) and __VALIDATE_USERNAME.match(username) is not None
 
 
 async def _hash_password(password: str) -> str:
