@@ -11,13 +11,14 @@ class User(BaseModel):
     When constructing a new User, generally user_id must be None as the database must assign the id.
     """
     user_id: Optional[int]
+    display_name: str
     username: str
     pw_hash: str
     flags: int
 
 
 def _maybe_row_to_user(row: Optional[dict]) -> Optional[User]:
-    return User(user_id=row["id"], username=row["MYUSER"], pw_hash=row["PASSWORD"], flags=row["flags"]) if row is not None else None
+    return User(user_id=row["id"], username=row["MYUSER"], pw_hash=row["PASSWORD"], flags=row["flags"], display_name=row["display_name"]) if row is not None else None
 
 
 class UserRepository:
@@ -53,12 +54,12 @@ class UserRepository:
             async with conn.cursor() as cur:
                 if user.user_id is None:
                     # insert
-                    await cur.execute('INSERT INTO `loginTable` (`MYUSER`, `PASSWORD`, `flags`) VALUES (%s, %s, %s);', (user.username, user.pw_hash, user.flags))
+                    await cur.execute('INSERT INTO `loginTable` (`MYUSER`, `PASSWORD`, `flags`, `display_name`) VALUES (%s, %s, %s, %s);', (user.username, user.pw_hash, user.flags, user.display_name))
                     user.user_id = cur.lastrowid
                     return user.user_id
                 else:
                     # update
-                    num_rows = await cur.execute('UPDATE `loginTable` SET `MYUSER` = %s, `PASSWORD` = %s, `flags` = %s WHERE `id` = %s LIMIT 1;', (user.username, user.pw_hash, user.flags, user.user_id))
+                    num_rows = await cur.execute('UPDATE `loginTable` SET `MYUSER` = %s, `PASSWORD` = %s, `flags` = %s, `display_name` = %s WHERE `id` = %s LIMIT 1;', (user.username, user.pw_hash, user.flags, user.display_name, user.user_id))
                     if num_rows < 1:
                         raise KeyError(f'failed updating user {user.username}: there is no such user with user_id {user.user_id}')
                     return user.user_id

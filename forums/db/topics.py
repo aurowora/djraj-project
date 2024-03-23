@@ -20,6 +20,7 @@ class Topic(BaseModel):
     use the TopicRepository's put_topic() method.
     """
     topic_id: Optional[int]
+    parent_cat: int
     author_id: int
     title: str
     content: str
@@ -29,7 +30,7 @@ class Topic(BaseModel):
 
 def _maybe_row_to_topic(row: Optional[dict]) -> Optional[Topic]:
     return Topic(topic_id=row["threadID"], author_id=row["userID"], title=row["title"], content=row["content"],
-                 created_at=mysql_date_to_python(row["createdAt"]), flags=row["flags"]) if row is not None else None
+                 created_at=mysql_date_to_python(row["createdAt"]), flags=row["flags"], parent_cat=row["parent_cat"]) if row is not None else None
 
 
 class TopicRepository:
@@ -94,15 +95,15 @@ class TopicRepository:
                 if topic.topic_id is None:
                     # createdAt set by default func
                     await cur.execute(
-                        'INSERT INTO threadsTable (userID, title, content, flags) VALUES (%s, %s, %s, %s);',
-                        (topic.author_id, topic.title, topic.content, topic.flags))
+                        'INSERT INTO threadsTable (userID, title, content, flags, parent_cat) VALUES (%s, %s, %s, %s, %s);',
+                        (topic.author_id, topic.title, topic.content, topic.flags, topic.parent_cat))
                     topic.topic_id = cur.lastrowid
                     return topic.topic_id
                 else:
                     # createdAt deliberately excluded
                     num_rows = await cur.execute(
-                        'UPDATE threadsTable SET userID = %s, title = %s, content = %s, flags = %s WHERE threadID = %s;',
-                        (topic.author_id, topic.title, topic.content, topic.flags, topic.topic_id))
+                        'UPDATE threadsTable SET userID = %s, title = %s, content = %s, flags = %s, parent_cat = %s WHERE threadID = %s;',
+                        (topic.author_id, topic.title, topic.content, topic.flags, topic.parent_cat, topic.topic_id))
                     if num_rows < 1:
                         raise KeyError(f'failed updating topic {topic.topic_id}: no such topic')
                     return topic.topic_id
