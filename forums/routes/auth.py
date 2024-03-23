@@ -7,19 +7,20 @@ import re
 from contextlib import suppress
 from datetime import datetime, timezone, timedelta
 from hmac import compare_digest
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Annotated
 from urllib.parse import urlencode
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
-from fastapi import APIRouter, Depends, Request, HTTPException
+from fastapi import APIRouter, Depends, Request, HTTPException, Form
 from jwt import encode, decode, InvalidTokenError
 from pydantic import BaseModel, Field
+from starlette import status
 from starlette.responses import RedirectResponse
 
 from forums.blocking import spawn_blocking
 from forums.config import LoginConfig
-from forums.db.users import UserRepository, get_user_repo
+from forums.db.users import UserRepository, get_user_repo, User
 
 router = APIRouter()
 
@@ -79,7 +80,7 @@ class RequestLogin(BaseModel):
 
 
 @router.post('/login')
-async def login(req: Request, login_params: RequestLogin,
+async def login(req: Request, login_params: Annotated[RequestLogin, Form()],
                 user_repo: UserRepository = Depends(get_user_repo)) -> RedirectResponse:
     if not _is_valid_username(login_params.username) or not (0 < len(login_params.password) <= 72):
         return RedirectResponse(url=f'/login?%s' % urlencode({'error': 'invalid username and/or password'}),
@@ -102,6 +103,45 @@ async def login(req: Request, login_params: RequestLogin,
     cval = _create_cookie(req.app.state.cfg.login, jwt_val, exp)
 
     return RedirectResponse(url='/', headers={'Set-Cookie': cval, 'Cache-Control': 'no-store'})
+
+
+async def current_user(req: Request, user_repo: UserRepository = Depends(get_user_repo)) -> User:
+    """
+    Retrieves the currently authenticated user. This coroutine is intended to be used as a dependency in the
+    following manner:
+
+    @router.get('/my-route')
+    async def my_route(user: User = Depends(current_user)):
+        pass
+
+    It returns a user object if the user can be authenticated. Otherwise, it raises an HTTPException that
+    FastAPI turns into a redirect response into the login page.
+    """
+    login_conf = req.app.state.cfg.login
+
+    try:
+        payload = _decode_login_jwt(login_conf.secret, req.cookies[login_conf.cookie_name])
+        if user := await user_repo.get_user_by_name(payload.sub):
+            return user
+
+        # Still here?
+        raise KeyError(f'no such user {payload.sub}')
+    except (KeyError, InvalidTokenError) as e:
+        # not logged in or login cookie failed validation
+        raise HTTPException(status_code=status.HTTP_303_SEE_OTHER,
+                            headers={'Location': '/login?%s' % urlencode({'error': 'this route requires authentication. Please sign in to continue'}), 'Cache-Control': 'no-store'},
+                            detail='This route requires authentication.') from e
+
+
+class WhoAmIReply(BaseModel):
+    user_id: int
+    username: str
+    display_name: str
+
+
+@router.get('/whoami')
+def whoami(user: User = Depends(current_user)) -> WhoAmIReply:
+    return WhoAmIReply(user_id=user.user_id, username=user.username, display_name=user.display_name)
 
 
 __VALIDATE_USERNAME = re.compile(r'^[0-9A-Za-z_]+$', flags=re.RegexFlag.UNICODE)
