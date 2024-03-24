@@ -7,7 +7,7 @@ import re
 from contextlib import suppress
 from datetime import datetime, timezone, timedelta
 from hmac import compare_digest
-from typing import Optional, Tuple, Annotated
+from typing import Optional, Tuple, Annotated, Sequence
 from urllib.parse import urlencode
 
 from argon2 import PasswordHasher
@@ -38,7 +38,7 @@ class _JWTPayload(BaseModel):
     # rfc "not before" of token
     nbf: int
     # rfc "audience"
-    aud: str
+    aud: Sequence[str]
     # app "csrf binding value"
     # if a user is authenticated during csrf verification, the value
     # in the csrf token must match the value in this struct or else
@@ -52,7 +52,7 @@ _LOGIN_OPTS = {
     'verify_aud': True,
     'verify_exp': True,
     'verify_nbf': True,
-    'strict_aud': True
+    'strict_aud': False
 }
 
 _CSRF_TOKEN_AUD = "djraj_proj.forums.csrf_token"
@@ -61,7 +61,7 @@ _CSRF_TOKEN_AUD = "djraj_proj.forums.csrf_token"
 class _CSRFToken(BaseModel):
     exp: int
     nbf: int
-    aud: str
+    aud: Sequence[str]
     sub: Optional[str] = Field(default=None)
     csrf_secret: Optional[str] = Field(default=None)
 
@@ -72,7 +72,7 @@ _CSRF_OPTS = {
     'verify_aud': True,
     'verify_nbf': True,
     'verify_exp': True,
-    'strict_aud': True,
+    'strict_aud': False,
 }
 
 
@@ -83,21 +83,24 @@ class RequestLogin(BaseModel):
 
 
 @router.post('/login')
-async def login(req: Request, login_params: Annotated[RequestLogin, Form()],
+async def login(req: Request, username: Annotated[str, Form()], password: Annotated[str, Form()], csrf_token: Annotated[str, Form()],
                 user_repo: UserRepository = Depends(get_user_repo)) -> RedirectResponse:
-    if not is_valid_username(login_params.username) or not (MIN_PASS_SIZE <= len(login_params.password) <= 72):
+    if not is_valid_username(username) or not (MIN_PASS_SIZE <= len(password) <= 72):
         return RedirectResponse(url=f'/login?%s' % urlencode({'error': 'invalid username and/or password'}),
-                                headers={'Cache-Control': 'no-store'})
+                                headers={'Cache-Control': 'no-store'},
+                                status_code=status.HTTP_303_SEE_OTHER)
 
-    csrf_verify(req, login_params.csrf_token)
+    csrf_verify(req, csrf_token)
 
-    if (user := await user_repo.get_user_by_name(login_params.username)) is None:
+    if (user := await user_repo.get_user_by_name(username)) is None:
         return RedirectResponse(url=f'/login?%s' % urlencode({'error': 'invalid username and/or password'}),
-                                headers={'Cache-Control': 'no-store'})
+                                headers={'Cache-Control': 'no-store'},
+                                status_code=status.HTTP_303_SEE_OTHER)
 
-    if not await _verify_password(login_params.password, user.pw_hash):
+    if not await _verify_password(password, user.pw_hash):
         return RedirectResponse(url=f'/login?%s' % urlencode({'error': 'invalid username and/or password'}),
-                                headers={'Cache-Control': 'no-store'})
+                                headers={'Cache-Control': 'no-store'},
+                                status_code=status.HTTP_303_SEE_OTHER)
 
     # Login OK
 
@@ -105,7 +108,8 @@ async def login(req: Request, login_params: Annotated[RequestLogin, Form()],
     jwt_val = _create_login_jwt(req.app.state.cfg.login.secret, user.username, exp)
     cval = _create_cookie(req.app.state.cfg.login, jwt_val, exp)
 
-    return RedirectResponse(url='/', headers={'Set-Cookie': cval, 'Cache-Control': 'no-store'})
+    return RedirectResponse(url='/', headers={'Set-Cookie': cval, 'Cache-Control': 'no-store'},
+                                status_code=status.HTTP_303_SEE_OTHER)
 
 
 async def current_user(req: Request, user_repo: UserRepository = Depends(get_user_repo)) -> User:
@@ -135,6 +139,25 @@ async def current_user(req: Request, user_repo: UserRepository = Depends(get_use
                             headers={'Location': '/login',
                                      'Cache-Control': 'no-store'},
                             detail='This route requires authentication.') from e
+
+
+async def _assert_no_user(req: Request, user_repo: UserRepository = Depends(get_user_repo)):
+    """
+    Redirects the user to the index page if they have a valid login.
+
+    Use as a dependency on the attribute. i.e.
+
+    @router.get('/my-route', dependencies=[Depends(_assert_no_user)]
+    async def my_route():
+        pass
+    """
+    try:
+        _ = await current_user(req, user_repo)
+    except HTTPException:
+        return None # OK
+
+    raise HTTPException(status_code=status.HTTP_303_SEE_OTHER, headers={'Location': '/', 'Cache-Control': 'no-store'},
+                        detail='The user is already authenticated.')
 
 
 class WhoAmIReply(BaseModel):
@@ -215,13 +238,13 @@ async def _verify_password(password: str, hashed: str) -> bool:
 def _create_login_jwt(secret: str, username: str, valid_until: datetime) -> str:
     current_time = int(math.floor(datetime.now(tz=timezone.utc).timestamp()))
     expire_time = int(math.floor(valid_until.astimezone(tz=timezone.utc).timestamp()))
-    payload = _JWTPayload(sub=username, exp=expire_time, nbf=current_time, aud=_LOGIN_AUD,
+    payload = _JWTPayload(sub=username, exp=expire_time, nbf=current_time, aud=[_LOGIN_AUD,],
                           csrf_secret=base64.urlsafe_b64encode(os.urandom(16)).decode('utf-8')).model_dump()
     return encode(payload, secret, algorithm="HS256")
 
 
 def _decode_login_jwt(secret: str, jwt: str) -> _JWTPayload:
-    return _JWTPayload(**decode(jwt, secret, algorithms=["HS256"], audience=(_LOGIN_AUD,), options=_LOGIN_OPTS))
+    return _JWTPayload(**decode(jwt, secret, algorithms=["HS256"], audience=[_LOGIN_AUD,], options=_LOGIN_OPTS))
 
 
 _WKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
@@ -272,7 +295,7 @@ def generate_csrf_token(req: Request) -> str:
     token = _CSRFToken(
         exp=int(math.floor((now + timedelta(hours=24)).timestamp())),
         nbf=int(math.floor(now.timestamp())),
-        aud=_CSRF_TOKEN_AUD,
+        aud=[_CSRF_TOKEN_AUD, ],
         sub=user,
         csrf_secret=csrf_secret
     ).model_dump(exclude_none=True)
@@ -292,9 +315,10 @@ def csrf_verify(req: Request, token: str):
     try:
         token = _CSRFToken(**decode(token, req.app.state.cfg.login.secret,
                                     algorithms=["HS256"],
-                                    audience=(_CSRF_TOKEN_AUD,),
+                                    audience=[_CSRF_TOKEN_AUD,],
                                     options=_CSRF_OPTS))
     except InvalidTokenError as exc:
+        print(exc)
         raise HTTPException(status_code=403, detail="csrf token validation failed") from exc
 
     if ((token.sub is None) != (token.csrf_secret is None)) or (

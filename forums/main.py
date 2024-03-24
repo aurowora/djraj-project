@@ -4,6 +4,7 @@ import logging
 
 import aiomysql
 from starlette.staticfiles import StaticFiles
+from starlette.templating import Jinja2Templates
 
 from forums.config import load_config
 from fastapi import FastAPI
@@ -41,6 +42,7 @@ app.include_router(router())
 app.mount('/static', StaticFiles(directory='static'), name='static')
 cfg = load_config()
 app.state.cfg = cfg
+app.state.tpl = Jinja2Templates(directory='templates')
 
 
 if __name__ == '__main__':

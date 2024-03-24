@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>University of Nebraska Forum</title>
     <link rel="stylesheet" href="/static/style.css">
-    <script defer src="/static/script.js"></script>
+    <!--<script defer src="/static/script.js"></script>-->
 </head>
 <body>
     <header>
@@ -21,11 +21,12 @@
         <main>
             <section id="login-section">
                 <h2>Login</h2>
-                <form id="login-form">
+                <form id="login-form" action="/auth/login" method="post">
                     <label for="username">Username:</label>
                     <input type="text" id="username" name="username" required>
                     <label for="password">Password:</label>
                     <input type="password" id="password" name="password" required>
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button type="submit">Login</button>
                 </form>
                 <p>Not a user? <a href="/register">Sign Up</a></p>
