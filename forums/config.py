@@ -1,7 +1,8 @@
+import os
+import tomllib
 from typing import Optional
 
 from pydantic import BaseModel, Field
-import os, tomllib
 
 
 class LoginConfig(BaseModel):
