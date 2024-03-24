@@ -1,4 +1,4 @@
-from typing import Optional, AsyncGenerator
+from typing import Optional, AsyncGenerator, Tuple
 
 from pydantic import BaseModel
 from aiomysql import Pool
@@ -11,8 +11,12 @@ class Category(BaseModel):
     parent_cat: Optional[int]
 
 
-def _maybe_row_to_category(row: Optional[dict]) -> Optional[Category]:
-    return Category(**row) if row is not None else None
+_ROW_SPEC = 'id, cat_name, cat_desc, parent_cat'
+_ROW = Tuple[int, str, str, int]
+
+
+def _maybe_row_to_category(row: Optional[_ROW]) -> Optional[Category]:
+    return Category(id=row[0], cat_name=row[1], cat_desc=row[2], parent_cat=row[3]) if row is not None else None
 
 
 class CategoryRepository:
@@ -25,7 +29,7 @@ class CategoryRepository:
         """
         async with self.__db.acquire() as conn:
             async with conn.cursor() as cur:
-                await cur.execute("SELECT * FROM categories WHERE id = %s;", (cat_id, ))
+                await cur.execute(f"SELECT {_ROW_SPEC} FROM categories WHERE id = %s;", (cat_id, ))
                 return _maybe_row_to_category(await cur.fetchone())
 
     async def get_subcategories_of_category(self, cat_id: Optional[int]) -> AsyncGenerator[Category, None]:
@@ -35,7 +39,7 @@ class CategoryRepository:
         """
         async with self.__db.acquire() as conn:
             async with conn.cursor() as cur:
-                await cur.execute("SELECT * FROM categories WHERE parent_cat = %s ORDER BY cat_name ASC;", (cat_id, ))
+                await cur.execute("SELECT {_ROW_SPEC} FROM categories WHERE parent_cat = %s ORDER BY cat_name ASC;", (cat_id, ))
                 while row := await cur.fetchone():
                     yield _maybe_row_to_category(row)
 

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, AsyncGenerator
+from typing import Optional, AsyncGenerator, Tuple
 
 from aiomysql import Pool
 from pydantic import BaseModel
@@ -28,9 +28,13 @@ class Topic(BaseModel):
     flags: int = 0
 
 
-def _maybe_row_to_topic(row: Optional[dict]) -> Optional[Topic]:
-    return Topic(topic_id=row["threadID"], author_id=row["userID"], title=row["title"], content=row["content"],
-                 created_at=mysql_date_to_python(row["createdAt"]), flags=row["flags"], parent_cat=row["parent_cat"]) if row is not None else None
+_ROW_SPEC = 'threadID, parent_cat, userID, title, content, createdAt, flags'
+_ROW = Tuple[int, int, int, str, str, str, int]
+
+
+def _maybe_row_to_topic(row: Optional[_ROW]) -> Optional[Topic]:
+    return Topic(topic_id=row[0], author_id=row[2], title=row[3], content=row[4],
+                 created_at=mysql_date_to_python(row[5]), flags=row[6], parent_cat=row[1]) if row is not None else None
 
 
 class TopicRepository:
@@ -48,7 +52,7 @@ class TopicRepository:
         async with self.__db.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "SELECT * FROM threadsTable WHERE threadId = %s;" if include_hidden else f"SELECT * FROM threadsTable WHERE threadId = %s AND (flags & {TOPIC_IS_HIDDEN}) = 0;",
+                    f"SELECT {_ROW_SPEC} FROM threadsTable WHERE threadId = %s;" if include_hidden else f"SELECT {_ROW_SPEC} FROM threadsTable WHERE threadId = %s AND (flags & {TOPIC_IS_HIDDEN}) = 0;",
                     (topic_id,))
                 return _maybe_row_to_topic(await cur.fetchone())
 
@@ -61,7 +65,7 @@ class TopicRepository:
         async with self.__db.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "SELECT * FROM threadsTable WHERE authorID = %s ORDER BY createdAt DESC LIMIT %s OFFSET %s;" if include_hidden else f"SELECT * FROM threadsTable WHERE authorID = %s AND (flags & {TOPIC_IS_HIDDEN}) = 0 ORDER BY createdAt DESC LIMIT %s OFFSET %s;",
+                    "SELECT {_ROW_SPEC} FROM threadsTable WHERE authorID = %s ORDER BY createdAt DESC LIMIT %s OFFSET %s;" if include_hidden else f"SELECT {_ROW_SPEC} FROM threadsTable WHERE authorID = %s AND (flags & {TOPIC_IS_HIDDEN}) = 0 ORDER BY createdAt DESC LIMIT %s OFFSET %s;",
                     (author_id, limit, skip))
                 while row := await cur.fetchone():
                     yield _maybe_row_to_topic(row)  # is never None
@@ -77,7 +81,7 @@ class TopicRepository:
         async with self.__db.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "SELECT * FROM threadsTable WHERE title LIKE %s ESCAPE '\\\\' OR content LIKE %s ESCAPE '\\\\' ORDER BY createdAt DESC LIMIT %s OFFSET %s;" if include_hidden else f"SELECT * FROM threadsTable WHERE (title LIKE %s ESCAPE '\\\\' OR content LIKE %s ESCAPE '\\\\') AND (flags & {TOPIC_IS_HIDDEN}) = 0 ORDER BY createdAt DESC LIMIT %s OFFSET %s;",
+                    f"SELECT {_ROW_SPEC} FROM threadsTable WHERE title LIKE %s ESCAPE '\\\\' OR content LIKE %s ESCAPE '\\\\' ORDER BY createdAt DESC LIMIT %s OFFSET %s;" if include_hidden else f"SELECT {_ROW_SPEC} FROM threadsTable WHERE (title LIKE %s ESCAPE '\\\\' OR content LIKE %s ESCAPE '\\\\') AND (flags & {TOPIC_IS_HIDDEN}) = 0 ORDER BY createdAt DESC LIMIT %s OFFSET %s;",
                     (query, query, limit, skip))
                 while row := await cur.fetchone():
                     yield _maybe_row_to_topic(row)  # is never None
