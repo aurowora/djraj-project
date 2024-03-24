@@ -138,7 +138,8 @@ async def current_user(req: Request, user_repo: UserRepository = Depends(get_use
         # not logged in or login cookie failed validation
         raise HTTPException(status_code=status.HTTP_303_SEE_OTHER,
                             headers={'Location': '/login',
-                                     'Cache-Control': 'no-store'},
+                                     'Cache-Control': 'no-store',
+                                     'Set-Cookie': _create_cookie(login_conf, '', datetime.fromtimestamp(0, tz=timezone.utc))},
                             detail='This route requires authentication.') from e
 
 
