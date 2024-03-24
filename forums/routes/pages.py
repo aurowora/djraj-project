@@ -40,6 +40,4 @@ def register(req: Request, error: Optional[str] = None, tpl: Jinja2Templates = D
         if __ENDSWITH_PUNCT.match(ctx["error"]) is None:
             ctx["error"] = ctx["error"] + '.'
 
-    print(ctx)
-
     return tpl.TemplateResponse(request=req, name='register.html', context=ctx)
