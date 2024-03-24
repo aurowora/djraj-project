@@ -210,7 +210,7 @@ async def register(req: Request, first_name: Annotated[str, Form()], last_name: 
     jwt_val = _create_login_jwt(req.app.state.cfg.login.secret, new_user.username, exp)
     cval = _create_cookie(req.app.state.cfg.login, jwt_val, exp)
 
-    return RedirectResponse(url='/', headers={'Set-Cookie': cval, 'Cache-Control': 'no-store'})
+    return RedirectResponse(url='/', headers={'Set-Cookie': cval, 'Cache-Control': 'no-store'}, status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.get('/logout')
