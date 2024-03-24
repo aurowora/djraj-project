@@ -178,3 +178,10 @@ footer {
     color: red;
     margin-top: 10px;
 }
+
+.banner-error {
+    color: white;
+    padding: 1em;
+    background-color: #ed5353;
+    border-radius: 0.25em;
+}

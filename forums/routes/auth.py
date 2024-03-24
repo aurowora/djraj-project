@@ -83,7 +83,8 @@ class RequestLogin(BaseModel):
 
 
 @router.post('/login')
-async def login(req: Request, username: Annotated[str, Form()], password: Annotated[str, Form()], csrf_token: Annotated[str, Form()],
+async def login(req: Request, username: Annotated[str, Form()], password: Annotated[str, Form()],
+                csrf_token: Annotated[str, Form()],
                 user_repo: UserRepository = Depends(get_user_repo)) -> RedirectResponse:
     if not is_valid_username(username) or not (MIN_PASS_SIZE <= len(password) <= 72):
         return RedirectResponse(url=f'/login?%s' % urlencode({'error': 'invalid username and/or password'}),
@@ -109,7 +110,7 @@ async def login(req: Request, username: Annotated[str, Form()], password: Annota
     cval = _create_cookie(req.app.state.cfg.login, jwt_val, exp)
 
     return RedirectResponse(url='/', headers={'Set-Cookie': cval, 'Cache-Control': 'no-store'},
-                                status_code=status.HTTP_303_SEE_OTHER)
+                            status_code=status.HTTP_303_SEE_OTHER)
 
 
 async def current_user(req: Request, user_repo: UserRepository = Depends(get_user_repo)) -> User:
@@ -154,7 +155,7 @@ async def _assert_no_user(req: Request, user_repo: UserRepository = Depends(get_
     try:
         _ = await current_user(req, user_repo)
     except HTTPException:
-        return None # OK
+        return None  # OK
 
     raise HTTPException(status_code=status.HTTP_303_SEE_OTHER, headers={'Location': '/', 'Cache-Control': 'no-store'},
                         detail='The user is already authenticated.')
@@ -172,23 +173,26 @@ def whoami(user: User = Depends(current_user)) -> WhoAmIReply:
 
 
 @router.post('/register')
-async def register(req: Request, first_name: Annotated[str, Form()], last_name: Annotated[str, Form()], username: Annotated[str, Form()], password: Annotated[str, Form()], csrf_token: Annotated[str, Form()],
+async def register(req: Request, first_name: Annotated[str, Form()], last_name: Annotated[str, Form()],
+                   username: Annotated[str, Form()], password: Annotated[str, Form()],
+                   csrf_token: Annotated[str, Form()],
                    user_repo: UserRepository = Depends(get_user_repo)):
     if not is_valid_username(username):
         raise HTTPException(status_code=status.HTTP_303_SEE_OTHER, headers={'Location': '/register?%s' % urlencode({
-            'error': 'the provided username is not valid. Usernames may only contain alphanumeric symbols and the underscore',
-            'Cache-Control': 'no-store'})})
+            'error': 'the provided username is not valid. Usernames may only contain alphanumeric symbols and the underscore'}),
+                                                                            'Cache-Control': 'no-store'})
 
     display_name = f'{first_name} {last_name}'
     if not is_valid_display_name(display_name):
         raise HTTPException(status_code=status.HTTP_303_SEE_OTHER, headers={'Location': '/register?%s' % urlencode({
-            'error': 'the provided display name is not valid. Names must be less than 64 characters and contain only alphanumeric symbols',
-            'Cache-Control': 'no-store'})})
+            'error': 'the provided display name is not valid. Names must be less than 64 characters and contain only alphanumeric symbols'}),
+                                                                            'Cache-Control': 'no-store'})
 
     if not (MIN_PASS_SIZE <= len(password) <= 72):
         raise HTTPException(status_code=status.HTTP_303_SEE_OTHER, headers={'Location': '/register?%s' % urlencode(
-            {'error': f'the provided password is not valid. Passwords must be between {MIN_PASS_SIZE} and 72 characters (inclusive)',
-             'Cache-Control': 'no-store'})})
+            {
+                'error': f'the provided password is not valid. Passwords must be between {MIN_PASS_SIZE} and 72 characters (inclusive)', }),
+                                                                            'Cache-Control': 'no-store'})
 
     csrf_verify(req, csrf_token)
 
@@ -207,6 +211,14 @@ async def register(req: Request, first_name: Annotated[str, Form()], last_name: 
     cval = _create_cookie(req.app.state.cfg.login, jwt_val, exp)
 
     return RedirectResponse(url='/', headers={'Set-Cookie': cval, 'Cache-Control': 'no-store'})
+
+
+@router.get('/logout')
+def logout(req: Request):
+    exp = datetime.fromtimestamp(0, tz=timezone.utc)
+    cval = _create_cookie(req.app.state.cfg.login, '', exp)
+    return RedirectResponse(url='/', headers={'Set-Cookie': cval, 'Cache-Control': 'no-store'},
+                            status_code=status.HTTP_303_SEE_OTHER)
 
 
 __VALIDATE_USERNAME = re.compile(r'^[0-9A-Za-z_]+$', flags=re.RegexFlag.UNICODE)
@@ -238,13 +250,13 @@ async def _verify_password(password: str, hashed: str) -> bool:
 def _create_login_jwt(secret: str, username: str, valid_until: datetime) -> str:
     current_time = int(math.floor(datetime.now(tz=timezone.utc).timestamp()))
     expire_time = int(math.floor(valid_until.astimezone(tz=timezone.utc).timestamp()))
-    payload = _JWTPayload(sub=username, exp=expire_time, nbf=current_time, aud=[_LOGIN_AUD,],
+    payload = _JWTPayload(sub=username, exp=expire_time, nbf=current_time, aud=[_LOGIN_AUD, ],
                           csrf_secret=base64.urlsafe_b64encode(os.urandom(16)).decode('utf-8')).model_dump()
     return encode(payload, secret, algorithm="HS256")
 
 
 def _decode_login_jwt(secret: str, jwt: str) -> _JWTPayload:
-    return _JWTPayload(**decode(jwt, secret, algorithms=["HS256"], audience=[_LOGIN_AUD,], options=_LOGIN_OPTS))
+    return _JWTPayload(**decode(jwt, secret, algorithms=["HS256"], audience=[_LOGIN_AUD, ], options=_LOGIN_OPTS))
 
 
 _WKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
@@ -273,7 +285,8 @@ def _create_cookie(conf: LoginConfig, value: str, exp: Optional[datetime] = None
         exp = datetime.now(tz=timezone.utc) + timedelta(seconds=conf.login_ttl)
 
     # There are format codes, but they break the RFC when you change the system locale
-    c[conf.cookie_name]["expires"] = exp.strftime(f"{_WKDAYS[exp.isoweekday() - 1]}, %d {_MONTHS[exp.month - 1]} %Y %H:%M:%S GMT")
+    c[conf.cookie_name]["expires"] = exp.strftime(
+        f"{_WKDAYS[exp.isoweekday() - 1]}, %d {_MONTHS[exp.month - 1]} %Y %H:%M:%S GMT")
 
     return c.output(header='', sep='').strip(' \r\n')
 
@@ -312,7 +325,7 @@ def csrf_verify(req: Request, token: str):
     try:
         token = _CSRFToken(**decode(token, req.app.state.cfg.login.secret,
                                     algorithms=["HS256"],
-                                    audience=[_CSRF_TOKEN_AUD,],
+                                    audience=[_CSRF_TOKEN_AUD, ],
                                     options=_CSRF_OPTS))
     except InvalidTokenError as exc:
         print(exc)

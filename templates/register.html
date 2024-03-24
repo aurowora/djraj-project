@@ -16,6 +16,13 @@
         <main>
             <section id="signup-section">
                 <h2>Sign Up</h2>
+
+                {% if error %}
+                <div class="banner-error">
+                    {{ error }}
+                </div>
+                {% endif %}
+
                 <form id="signup-form" action="/auth/register" method="post">
                     <label for="firstname">First Name:</label>
                     <input type="text" id="firstname" name="first_name" required>

@@ -21,6 +21,13 @@
         <main>
             <section id="login-section">
                 <h2>Login</h2>
+
+                {% if error %}
+                    <div class="banner-error">
+                        {{ error }}
+                    </div>
+                {% endif %}
+
                 <form id="login-form" action="/auth/login" method="post">
                     <label for="username">Username:</label>
                     <input type="text" id="username" name="username" required>
