@@ -15,7 +15,7 @@ class LoginConfig(BaseModel):
     # The domain attribute to use for the cookie
     cookie_domain: str = Field(default='localhost')
     # The path attribute to use for the cookie
-    cookie_path: Optional[str] = Field(default=None)
+    cookie_path: str = Field(default='/')
     # Whether the secure attribute is set on the cookie
     cookie_secure: bool = Field(default=True)
     # Whether the httpOnly attribute is set on the cookie

@@ -3,6 +3,7 @@ from typing import Optional
 from aiomysql import Pool
 from pydantic import BaseModel
 from fastapi import Request
+from typing import Tuple
 
 
 class User(BaseModel):
@@ -17,8 +18,12 @@ class User(BaseModel):
     flags: int
 
 
-def _maybe_row_to_user(row: Optional[dict]) -> Optional[User]:
-    return User(user_id=row["id"], username=row["MYUSER"], pw_hash=row["PASSWORD"], flags=row["flags"], display_name=row["display_name"]) if row is not None else None
+_ROW_SPEC = 'id, MYUSER, PASSWORD, display_name, flags'
+_ROW = Tuple[int, str, str, str, int]
+
+
+def _maybe_row_to_user(row: Optional[_ROW]) -> Optional[User]:
+    return User(user_id=row[0], username=row[1], pw_hash=row[2], flags=row[4], display_name=row[3]) if row is not None else None
 
 
 class UserRepository:
@@ -31,7 +36,7 @@ class UserRepository:
         """
         async with self.__db.acquire() as conn:
             async with conn.cursor() as cur:
-                await cur.execute('SELECT * FROM `loginTable` WHERE `id` = %s;', (user_id,))
+                await cur.execute(f'SELECT {_ROW_SPEC} FROM `loginTable` WHERE `id` = %s;', (user_id,))
                 return _maybe_row_to_user(await cur.fetchone())
 
     async def get_user_by_name(self, username: str) -> Optional[User]:
@@ -40,7 +45,7 @@ class UserRepository:
         """
         async with self.__db.acquire() as conn:
             async with conn.cursor() as cur:
-                await cur.execute('SELECT * FROM `loginTable` WHERE `MYUSER` = %s;', (username,))
+                await cur.execute(f'SELECT {_ROW_SPEC} FROM `loginTable` WHERE `MYUSER` = %s;', (username,))
                 return _maybe_row_to_user(await cur.fetchone())
 
     async def put_user(self, user: User) -> int:

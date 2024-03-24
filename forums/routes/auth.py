@@ -171,32 +171,31 @@ def whoami(user: User = Depends(current_user)) -> WhoAmIReply:
     return WhoAmIReply(user_id=user.user_id, username=user.username, display_name=user.display_name)
 
 
-class RequestRegister(BaseModel):
-    display_name: str
-    username: str
-    password: str
-    csrf_token: str
-
-
 @router.post('/register')
-async def register(req: Request, register_params: Annotated[RequestRegister, Form()],
+async def register(req: Request, first_name: Annotated[str, Form()], last_name: Annotated[str, Form()], username: Annotated[str, Form()], password: Annotated[str, Form()], csrf_token: Annotated[str, Form()],
                    user_repo: UserRepository = Depends(get_user_repo)):
-    if not is_valid_username(register_params.username):
-        raise HTTPException(status_code=status.HTTP_303_SEE_OTHER, headers={'Location': '/login?%s' % urlencode({
+    if not is_valid_username(username):
+        raise HTTPException(status_code=status.HTTP_303_SEE_OTHER, headers={'Location': '/register?%s' % urlencode({
             'error': 'the provided username is not valid. Usernames may only contain alphanumeric symbols and the underscore',
             'Cache-Control': 'no-store'})})
 
-    if MIN_PASS_SIZE <= len(register_params.password) <= 72:
-        raise HTTPException(status_code=status.HTTP_303_SEE_OTHER, headers={'Location': '/login?%s' % urlencode(
+    display_name = f'{first_name} {last_name}'
+    if not is_valid_display_name(display_name):
+        raise HTTPException(status_code=status.HTTP_303_SEE_OTHER, headers={'Location': '/register?%s' % urlencode({
+            'error': 'the provided display name is not valid. Names must be less than 64 characters and contain only alphanumeric symbols',
+            'Cache-Control': 'no-store'})})
+
+    if not (MIN_PASS_SIZE <= len(password) <= 72):
+        raise HTTPException(status_code=status.HTTP_303_SEE_OTHER, headers={'Location': '/register?%s' % urlencode(
             {'error': f'the provided password is not valid. Passwords must be between {MIN_PASS_SIZE} and 72 characters (inclusive)',
              'Cache-Control': 'no-store'})})
 
-    csrf_verify(req, register_params.csrf_token)
+    csrf_verify(req, csrf_token)
 
-    hashed_pw = await _hash_password(register_params.password)
-    new_user = User(username=register_params.username,
-                    password=hashed_pw,
-                    display_name=register_params.display_name,
+    hashed_pw = await _hash_password(password)
+    new_user = User(username=username,
+                    pw_hash=hashed_pw,
+                    display_name=display_name,
                     flags=0,
                     user_id=None)
 
@@ -211,6 +210,7 @@ async def register(req: Request, register_params: Annotated[RequestRegister, For
 
 
 __VALIDATE_USERNAME = re.compile(r'^[0-9A-Za-z_]+$', flags=re.RegexFlag.UNICODE)
+# TODO: This regex probably needs to support more characters than just ASCII
 __VALIDATE_DISPLAY_NAME = re.compile(r'^[A-Za-z0-9_ ]+$', flags=re.RegexFlag.UNICODE)
 is_valid_display_name = lambda disp: (0 < len(disp) < 64) and __VALIDATE_DISPLAY_NAME.match(disp) is not None
 is_valid_username = lambda username: (0 < len(username) <= 64) and __VALIDATE_USERNAME.match(username) is not None
@@ -230,7 +230,7 @@ async def _verify_password(password: str, hashed: str) -> bool:
     :returns: True if the password matches the hash, false otherwise.
     """
     try:
-        return await spawn_blocking(PasswordHasher().verify(hashed, password))
+        return await spawn_blocking(PasswordHasher().verify, hashed, password)
     except VerifyMismatchError:
         return False
 
@@ -273,12 +273,9 @@ def _create_cookie(conf: LoginConfig, value: str, exp: Optional[datetime] = None
         exp = datetime.now(tz=timezone.utc) + timedelta(seconds=conf.login_ttl)
 
     # There are format codes, but they break the RFC when you change the system locale
-    c[conf.cookie_name]["expires"] = exp.strftime("{}, %d {} %Y %H:%M:%S GMT") % (
-        _WKDAYS[exp.isoweekday() - 1],
-        _MONTHS[exp.month - 1]
-    )
+    c[conf.cookie_name]["expires"] = exp.strftime(f"{_WKDAYS[exp.isoweekday() - 1]}, %d {_MONTHS[exp.month - 1]} %Y %H:%M:%S GMT")
 
-    return c.output()
+    return c.output(header='', sep='').strip(' \r\n')
 
 
 def generate_csrf_token(req: Request) -> str:

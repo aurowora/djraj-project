@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign Up - University of Nebraska Forum</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <header>
@@ -16,15 +16,16 @@
         <main>
             <section id="signup-section">
                 <h2>Sign Up</h2>
-                <form id="signup-form">
+                <form id="signup-form" action="/auth/register" method="post">
                     <label for="firstname">First Name:</label>
-                    <input type="text" id="firstname" name="firstname" required>
+                    <input type="text" id="firstname" name="first_name" required>
                     <label for="lastname">Last Name:</label>
-                    <input type="text" id="lastname" name="lastname" required>
+                    <input type="text" id="lastname" name="last_name" required>
                     <label for="username">Username:</label>
                     <input type="text" id="username" name="username" required>
                     <label for="password">Password:</label>
                     <input type="password" id="password" name="password" required>
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button type="submit">Sign Up</button>
                 </form>
             </section>
@@ -35,6 +36,5 @@
             <p>&copy; 2024 University of Nebraska Forum</p>
         </div>
     </footer>
-    <script src="script.js"></script>
 </body>
 </html>
