@@ -3,6 +3,8 @@ import asyncio
 import logging
 
 import aiomysql
+from starlette.staticfiles import StaticFiles
+
 from forums.config import load_config
 from fastapi import FastAPI
 import uvicorn
@@ -36,6 +38,7 @@ async def lifespan(a: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(router())
+app.mount('/static', StaticFiles(directory='static'), name='static')
 cfg = load_config()
 app.state.cfg = cfg
 
