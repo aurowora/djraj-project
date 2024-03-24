@@ -132,8 +132,7 @@ async def current_user(req: Request, user_repo: UserRepository = Depends(get_use
     except (KeyError, InvalidTokenError) as e:
         # not logged in or login cookie failed validation
         raise HTTPException(status_code=status.HTTP_303_SEE_OTHER,
-                            headers={'Location': '/login?%s' % urlencode(
-                                {'error': 'this route requires authentication. Please sign in to continue'}),
+                            headers={'Location': '/login',
                                      'Cache-Control': 'no-store'},
                             detail='This route requires authentication.') from e
 
