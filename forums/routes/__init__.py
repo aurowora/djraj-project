@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from auth import router as auth_router
+from forums.routes.auth import router as auth_router
 
 
 def router() -> APIRouter:

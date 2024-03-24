@@ -7,7 +7,7 @@ from forums.config import load_config
 from fastapi import FastAPI
 import uvicorn
 from contextlib import asynccontextmanager, suppress
-from routes import router
+from forums.routes import router
 
 
 @asynccontextmanager
