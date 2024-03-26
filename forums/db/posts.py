@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional, AsyncGenerator, Tuple
 
-from aiomysql import Pool
+from aiomysql import Pool, Connection
 from pydantic import BaseModel
 
 from forums.db.utils import mysql_date_to_python
@@ -49,6 +49,15 @@ class PostRepository:
                     (topic_id, limit, skip))
                 while row := cur.fetchone():
                     yield _maybe_row_to_post(row)
+
+    @classmethod
+    async def _delete_all_posts_of_topic(cls, conn: Connection, topic_id: int) -> int:
+        """
+        Internal "friend" function of TopicRepository used to delete all posts of a certain topic
+        """
+        async with conn.cursor() as cur:
+            return await cur.execute('DELETE FROM postsTable WHERE threadID = %s;', topic_id)
+
 
     async def put_post(self, post: Post) -> int:
         async with self.__db.acquire() as conn:

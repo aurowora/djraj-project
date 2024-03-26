@@ -4,6 +4,7 @@ from typing import Optional, AsyncGenerator, Tuple
 from aiomysql import Pool
 from pydantic import BaseModel
 
+from forums.db.posts import PostRepository
 from forums.db.utils import mysql_date_to_python, mysql_escape_like
 
 # Bitflags for Topic
@@ -86,6 +87,19 @@ class TopicRepository:
                     (query, query, limit, skip))
                 while row := await cur.fetchone():
                     yield _maybe_row_to_topic(row)  # is never None
+
+    async def delete_topic_by_id(self, topic_id: int) -> int:
+        """
+        Deletes the topic and all of its child posts from the db. Returns the number of rows affected.
+        """
+        async with self.__db.acquire() as conn:
+            # First, we must delete all posts that belong to this topic
+            # noinspection PyProtectedMember
+            rows = await PostRepository._delete_all_posts_of_topic(conn, topic_id)
+
+            # Then delete the topic
+            async with conn.cursor() as cur:
+                return cur.execute('DELETE FROM threadsTable WHERE threadID = %s LIMIT 1;', topic_id) + rows
 
     async def put_topic(self, topic: Topic) -> int:
         """

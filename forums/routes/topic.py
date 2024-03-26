@@ -3,7 +3,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, Field
 from starlette import status
-from starlette.responses import RedirectResponse
+from starlette.responses import RedirectResponse, Response
 
 from forums.db.topics import TOPIC_ALL_FLAGS, Topic, TopicRepository
 from forums.db.users import User, IS_USER_RESTRICTED, IS_USER_MODERATOR, UserRepository, get_user_repo
@@ -82,3 +82,26 @@ async def get_topic(topic_id: int,
 
     # placeholder until template
     return f'Title: {topic.title}\nAuthor: {author.display_name}\nDate: {topic.created_at}\nContent: {topic.content}'
+
+
+@topic_router.delete('/{topic_id}')
+async def delete_topic(req: Request, topic_id: int, csrf_token: str, user: User = Depends(current_user),
+                       topic_repo: TopicRepository = Depends(get_topic_repo)):
+    # check csrf
+    csrf_verify(req, csrf_token)
+
+    # load topic
+    if topic_id < 0:
+        raise HTTPException(status_code=400, detail='Invalid topic id.')
+    topic = await topic_repo.get_topic_by_id(topic_id)
+    if not topic:
+        raise HTTPException(status_code=404, detail='No such topic')
+
+    # check user perms
+    # we only allow admins to delete topics (users can only hide their own topics)
+    if user.flags & IS_USER_MODERATOR != IS_USER_MODERATOR:
+        raise HTTPException(status_code=403, detail='You do not have permission to do that.')
+
+    await topic_repo.delete_topic_by_id(topic_id)
+
+    return Response(status_code=204)
