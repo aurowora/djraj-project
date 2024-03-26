@@ -6,11 +6,11 @@ from starlette import status
 from starlette.responses import RedirectResponse
 
 from forums.db.topics import TOPIC_ALL_FLAGS, Topic, TopicRepository
-from forums.db.users import User, IS_USER_RESTRICTED, IS_USER_MODERATOR
+from forums.db.users import User, IS_USER_RESTRICTED, IS_USER_MODERATOR, UserRepository, get_user_repo
 from forums.routes.auth import current_user
 import regex  # use instead of re for more advanced regex support
 
-from forums.utils import get_topic_repo
+from forums.utils import get_topic_repo, UserAPI
 
 topic_router = APIRouter()
 
@@ -52,3 +52,29 @@ async def create_topic(title: Annotated[str, Form()], content: Annotated[str, Fo
     # Send the user to the topic they just created
     return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER, url=f'/topic/{topic.topic_id}',
                             headers={'Cache-Control': 'no-store'})
+
+
+@topic_router.get('/topic_id/{topic_id}')
+async def get_topic(topic_id: int,
+                    topic_repo: TopicRepository = Depends(get_topic_repo),
+                    user_repo: UserRepository = Depends(get_user_repo),
+                    user: User = Depends(current_user)):
+    # load the topic
+    if topic_id < 0:
+        raise HTTPException(status_code=403, detail='Invalid topic id')
+    topic = await topic_repo.get_topic_by_id(topic_id,
+                                             include_hidden=(user.flags & IS_USER_MODERATOR == IS_USER_MODERATOR))
+
+    if not topic:
+        raise HTTPException(status_code=404, detail='No such topic')
+
+    # load user obj for author
+    author = await user_repo.get_user_by_id(topic.author_id)
+    if not author:
+        # fake it
+        author = UserAPI(user_id=None, username="deleted", display_name="Deleted User", flags=0)
+    else:
+        author = UserAPI.from_user(author)
+
+    # placeholder until template
+    return f'Title: {topic.title}\nAuthor: {author.display_name}\nDate: {topic.created_at}\nContent: {topic.content}'
