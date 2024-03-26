@@ -58,7 +58,7 @@ async def create_topic(req: Request,
                             headers={'Cache-Control': 'no-store'})
 
 
-@topic_router.get('/topic_id/{topic_id}')
+@topic_router.get('/{topic_id}')
 async def get_topic(topic_id: int,
                     topic_repo: TopicRepository = Depends(get_topic_repo),
                     user_repo: UserRepository = Depends(get_user_repo),
