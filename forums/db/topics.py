@@ -9,6 +9,7 @@ from forums.db.utils import mysql_date_to_python, mysql_escape_like
 # Bitflags for Topic
 TOPIC_IS_HIDDEN = 1 << 0
 TOPIC_IS_PINNED = 1 << 1
+TOPIC_ALL_FLAGS = TOPIC_IS_HIDDEN | TOPIC_IS_PINNED
 
 
 class Topic(BaseModel):

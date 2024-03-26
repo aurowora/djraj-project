@@ -6,6 +6,10 @@ from fastapi import Request
 from typing import Tuple
 
 
+IS_USER_RESTRICTED = 1 << 0
+IS_USER_MODERATOR = 1 << 1
+
+
 class User(BaseModel):
     """
     Represents a User in the database. This item is meant to be returned by a UserRepository.
