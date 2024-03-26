@@ -1,4 +1,4 @@
-from fastapi import Form, APIRouter, Depends, HTTPException
+from fastapi import Form, APIRouter, Depends, HTTPException, Request
 from typing import Annotated
 
 from pydantic import BaseModel, Field
@@ -7,7 +7,7 @@ from starlette.responses import RedirectResponse
 
 from forums.db.topics import TOPIC_ALL_FLAGS, Topic, TopicRepository
 from forums.db.users import User, IS_USER_RESTRICTED, IS_USER_MODERATOR, UserRepository, get_user_repo
-from forums.routes.auth import current_user
+from forums.routes.auth import current_user, csrf_verify
 import regex  # use instead of re for more advanced regex support
 
 from forums.utils import get_topic_repo, UserAPI
@@ -18,8 +18,10 @@ __TOPIC_ALLOW_MOST_CHARS = regex.compile(r"$[\P{Cc}\P{Cn}\P{Cs}]+^")
 
 
 @topic_router.post('/')
-async def create_topic(title: Annotated[str, Form()], content: Annotated[str, Form()],
+async def create_topic(req: Request,
+                       title: Annotated[str, Form()], content: Annotated[str, Form()],
                        category: Annotated[int, Form()], create_flags: Annotated[int, Form()],
+                       csrf_token: Annotated[str, Form()],
                        user: User = Depends(current_user),
                        topic_repo: TopicRepository = Depends(get_topic_repo)):
     if user.flags & IS_USER_RESTRICTED == IS_USER_RESTRICTED:
@@ -33,6 +35,8 @@ async def create_topic(title: Annotated[str, Form()], content: Annotated[str, Fo
 
     if category < 0 and create_flags < 0:
         raise HTTPException(status_code=400, detail='Category and create_flags must be positive integers.')
+
+    csrf_verify(req, csrf_token)
 
     # only moderators may set create flags
     create_flags = 0
