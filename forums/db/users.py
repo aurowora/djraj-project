@@ -21,6 +21,12 @@ class User(BaseModel):
     pw_hash: str
     flags: int
 
+    def is_moderator(self):
+        return self.flags & IS_USER_MODERATOR == IS_USER_MODERATOR
+
+    def is_restricted(self):
+        return self.flags & IS_USER_RESTRICTED == IS_USER_RESTRICTED
+
 
 _ROW_SPEC = 'id, MYUSER, PASSWORD, display_name, flags'
 _ROW = Tuple[int, str, str, str, int]

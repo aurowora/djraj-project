@@ -15,6 +15,11 @@ from forums.utils import get_topic_repo, UserAPI
 topic_router = APIRouter()
 
 __TOPIC_ALLOW_MOST_CHARS = regex.compile(r"$[\P{Cc}\P{Cn}\P{Cs}]+^")
+# This can be up to 2^16 since its a TEXT field, but realistically something much lower is going to be
+# appropriate
+MAX_TOPIC_CONTENT_LEN = 4000
+# This can be no more than 100 characters
+MAX_TOPIC_TITLE_LEN = 100
 
 
 @topic_router.post('/')
@@ -27,11 +32,11 @@ async def create_topic(req: Request,
     if user.flags & IS_USER_RESTRICTED == IS_USER_RESTRICTED:
         raise HTTPException(status_code=403, detail='Restricted users may not post new content items.')
 
-    if not (0 < len(title) <= 100):
-        raise HTTPException(status_code=400, detail='Title must be between 1 and 100 characters.')
+    if not (0 < len(title) <= MAX_TOPIC_TITLE_LEN):
+        raise HTTPException(status_code=400, detail=f'Title must be between 1 and {MAX_TOPIC_TITLE_LEN} characters.')
 
-    if not (0 < len(content) <= 2048):
-        raise HTTPException(status_code=400, detail='Post content must be between 1 and 2048 characters.')
+    if not (0 < len(content) <= MAX_TOPIC_CONTENT_LEN):
+        raise HTTPException(status_code=400, detail=f'Post content must be between 1 and {MAX_TOPIC_CONTENT_LEN} characters.')
 
     if category < 0 and create_flags < 0:
         raise HTTPException(status_code=400, detail='Category and create_flags must be positive integers.')
@@ -40,7 +45,7 @@ async def create_topic(req: Request,
 
     # only moderators may set create flags
     create_flags = 0
-    if user.flags & IS_USER_MODERATOR == IS_USER_MODERATOR:
+    if user.is_moderator():
         create_flags = create_topic.create_flags & TOPIC_ALL_FLAGS
 
     # Validate title and content fields
@@ -67,7 +72,7 @@ async def get_topic(topic_id: int,
     if topic_id < 0:
         raise HTTPException(status_code=403, detail='Invalid topic id')
     topic = await topic_repo.get_topic_by_id(topic_id,
-                                             include_hidden=(user.flags & IS_USER_MODERATOR == IS_USER_MODERATOR))
+                                             include_hidden=user.is_moderator())
 
     if not topic:
         raise HTTPException(status_code=404, detail='No such topic')
@@ -91,8 +96,6 @@ async def delete_topic(req: Request, topic_id: int, csrf_token: str, user: User 
     csrf_verify(req, csrf_token)
 
     # load topic
-    if topic_id < 0:
-        raise HTTPException(status_code=400, detail='Invalid topic id.')
     topic = await topic_repo.get_topic_by_id(topic_id)
     if not topic:
         raise HTTPException(status_code=404, detail='No such topic')
@@ -135,26 +138,33 @@ async def update_topic(req: Request, patch_spec: TopicPatchSpec, topic_id: int =
                        user: User = Depends(current_user)):
     csrf_verify(req, patch_spec.csrf_token)
 
-    # do not allow restricted users to edit topics
-    if user.flags & IS_USER_RESTRICTED == IS_USER_RESTRICTED:
-        raise HTTPException(status_code=403, detail='You do not have permission to do this.')
-
     # load topic
     topic = await topic_repo.get_topic_by_id(topic_id)
+    if topic is None:
+        raise HTTPException(status_code=404, detail='No such topic.')
+
+    # quit early if !moderator, user != author, or user.is_restricted
+    if (not user.is_moderator() and user.user_id != topic.author_id) or user.is_restricted():
+        raise HTTPException(status_code=403, detail='You do not have permission to do this.')
+
     dirty = False
 
     # Apply visibility change
-    if (patch_spec.set_hide is not None and
-            ((patch_spec.set_hide and user.user_id == topic.author_id)
-             or user.flags & IS_USER_MODERATOR == IS_USER_MODERATOR)):
+    if patch_spec.set_hide is not None:
         if patch_spec.set_hide:
             topic.flags |= TOPIC_IS_HIDDEN
-        else:
+        elif user.is_moderator():
             topic.flags &= ~TOPIC_IS_HIDDEN
+        else:  # the user is trying to un-hide a topic, but they are not a moderator
+            raise HTTPException(status_code=403, detail='You may not un-hide this topic.')
         dirty = True
 
     # Pin or unpin
-    if patch_spec.set_pin is not None and user.flags & IS_USER_MODERATOR == IS_USER_MODERATOR:
+    if patch_spec.set_pin is not None:
+        # Only a moderator may alter the pin status of a topic.
+        if not user.is_moderator():
+            raise HTTPException(status_code=403, detail='You may not pin or unpin this topic.')
+
         if patch_spec.set_pin:
             topic.flags |= TOPIC_IS_PINNED
         else:
@@ -162,8 +172,12 @@ async def update_topic(req: Request, patch_spec: TopicPatchSpec, topic_id: int =
         dirty = True
 
     # change the content
-    if (patch_spec.set_content is not None and
-            ((user.flags & IS_USER_MODERATOR == IS_USER_MODERATOR) or user.user_id == topic.author_id)):
+    # both the author and moderators are permitted to set the content
+    if patch_spec.set_content:
+        # validate topic length
+        if not (0 < len(patch_spec.set_content) <= MAX_TOPIC_CONTENT_LEN):
+            raise HTTPException(status_code=400, detail=f'Content must be between 0 and {MAX_TOPIC_CONTENT_LEN}.')
+
         # validate that it only contains legal characters
         if not __TOPIC_ALLOW_MOST_CHARS.match(patch_spec.set_content):
             raise HTTPException(status_code=400, detail='Invalid content.')
@@ -171,15 +185,17 @@ async def update_topic(req: Request, patch_spec: TopicPatchSpec, topic_id: int =
         dirty = True
 
     # change the title
-    if patch_spec.set_title is not None and \
-            ((user.flags & IS_USER_MODERATOR == IS_USER_MODERATOR) or user.user_id == topic.author_id):
+    if patch_spec.set_title is not None:
+        if not (0 < len(patch_spec.set_title) <= MAX_TOPIC_TITLE_LEN):
+            raise HTTPException(status_code=400, detail=f'Title must be between 0 and {MAX_TOPIC_TITLE_LEN}.')
+
         if not __TOPIC_ALLOW_MOST_CHARS.match(patch_spec.set_title):
             raise HTTPException(status_code=400, detail='Invalid title.')
         topic.title = patch_spec.set_title
         dirty = True
 
     # change the category
-    if patch_spec.set_category and user.flags & IS_USER_MODERATOR == IS_USER_MODERATOR:
+    if patch_spec.set_category and user.is_moderator():
         topic.parent_cat = patch_spec.set_category
         dirty = True
 
