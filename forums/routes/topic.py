@@ -125,7 +125,7 @@ class TopicPatchSpec(BaseModel):
     set_title: Optional[str] = Field(default=None, le=100, gt=0)
 
     # moderators can set category
-    set_catgory: Optional[int]
+    set_category: Optional[int]
 
 
 @topic_router.patch('/{topic_id}')
@@ -179,8 +179,8 @@ async def update_topic(req: Request, patch_spec: TopicPatchSpec, topic_id: int =
         dirty = True
 
     # change the category
-    if patch_spec.set_catgory and user.flags & IS_USER_MODERATOR == IS_USER_MODERATOR:
-        topic.parent_cat = patch_spec.set_catgory
+    if patch_spec.set_category and user.flags & IS_USER_MODERATOR == IS_USER_MODERATOR:
+        topic.parent_cat = patch_spec.set_category
         dirty = True
 
     # Commit if anything change
