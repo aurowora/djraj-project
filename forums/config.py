@@ -24,6 +24,8 @@ class LoginConfig(BaseModel):
     cookie_same_site: str = Field(default="strict", pattern="^(strict|lax|none)$")
     # How long the auth cookie (and therefore the user session) should live
     login_ttl: int = Field(default=60 * 60 * 24 * 7, gt=60)
+    # The minimum length of a password, must be in (0, 72]
+    min_password_size: int = Field(default=12, gt=0, le=72)
 
 
 class Config(BaseModel):

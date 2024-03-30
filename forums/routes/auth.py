@@ -24,8 +24,6 @@ from forums.db.users import UserRepository, get_user_repo, User
 
 router = APIRouter()
 
-# This must be at least 1 for technical reasons. Should be more for security reasons
-MIN_PASS_SIZE = 8
 
 _LOGIN_AUD = "djraj_proj.forums.auth"
 
@@ -86,7 +84,7 @@ class RequestLogin(BaseModel):
 async def login(req: Request, username: Annotated[str, Form()], password: Annotated[str, Form()],
                 csrf_token: Annotated[str, Form()],
                 user_repo: UserRepository = Depends(get_user_repo)) -> RedirectResponse:
-    if not is_valid_username(username) or not (MIN_PASS_SIZE <= len(password) <= 72):
+    if not is_valid_username(username) or not (req.app.state.cfg.login.min_password_size <= len(password) <= 72):
         return RedirectResponse(url=f'/login?%s' % urlencode({'error': 'invalid username and/or password'}),
                                 headers={'Cache-Control': 'no-store'},
                                 status_code=status.HTTP_303_SEE_OTHER)
@@ -190,10 +188,10 @@ async def register(req: Request, first_name: Annotated[str, Form()], last_name: 
             'error': 'the provided display name is not valid. Names must be less than 64 characters and contain only alphanumeric symbols'}),
                                                                             'Cache-Control': 'no-store'})
 
-    if not (MIN_PASS_SIZE <= len(password) <= 72):
+    if not (req.app.state.cfg.login.min_password_size <= len(password) <= 72):
         raise HTTPException(status_code=status.HTTP_303_SEE_OTHER, headers={'Location': '/register?%s' % urlencode(
             {
-                'error': f'the provided password is not valid. Passwords must be between {MIN_PASS_SIZE} and 72 characters (inclusive)', }),
+                'error': f'the provided password is not valid. Passwords must be between {req.app.state.cfg.login.min_password_size} and 72 characters (inclusive)', }),
                                                                             'Cache-Control': 'no-store'})
 
     csrf_verify(req, csrf_token)
