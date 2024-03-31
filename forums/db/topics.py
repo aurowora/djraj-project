@@ -101,7 +101,8 @@ class TopicRepository:
 
         Returns a tuple like (total_results, (topics, ...))
         """
-        fragment = 'FROM threadsTable AS T JOIN loginTable AS U ON T.userID = U.id WHERE T.parent_cat = %s' if include_hidden else f'WHERE parent_cat = %s AND (flags & {TOPIC_IS_HIDDEN}) = 0'
+        where_clause = 'WHERE T.parent_cat = %s' if include_hidden else f'WHERE parent_cat = %s AND (flags & {TOPIC_IS_HIDDEN}) = 0'
+        fragment = f'FROM threadsTable AS T JOIN loginTable AS U ON T.userID = U.id {where_clause}'
 
         async with self.__db.acquire() as conn:
             async with conn.cursor() as cur:
