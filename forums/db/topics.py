@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from forums.db.posts import PostRepository
 from forums.db.utils import mysql_date_to_python, mysql_escape_like
+from forums.models import UserAPI
 
 # Bitflags for Topic
 TOPIC_IS_HIDDEN = 1 << 0
@@ -39,6 +40,40 @@ def _maybe_row_to_topic(row: Optional[_ROW]) -> Optional[Topic]:
                  created_at=mysql_date_to_python(row[5]), flags=row[6], parent_cat=row[1]) if row is not None else None
 
 
+class TopicWithAuthor(BaseModel):
+    """
+    Topic is a topic object with an author field instead of author_id. The author field is a UserAPI object.
+    """
+    topic_id: Optional[int]
+    parent_cat: int
+    author: UserAPI
+    title: str
+    content: str
+    created_at: Optional[datetime]
+    flags: int = 0
+
+    def into_topic(self) -> Topic:
+        """
+        Converts this TopicWithAuthor into a regular topic.
+        """
+        return Topic(topic_id=self.topic_id, parent_cat=self.parent_cat, author_id=self.author.user_id,
+                     title=self.title, content=self.content, created_at=self.created_at, flags=self.flags)
+
+
+_JOIN_ROW_SPEC = 'T.threadID, T.parent_cat, T.userID, T.title, T.content, T.createdAt, T.flags, U.id, U.MYUSER, U.display_name, U.flags'
+_JOIN_ROW = Tuple[int, int, int, str, str, str, int, int, str, str, int]
+
+
+def _maybe_row_to_topic_author(row: Optional[_JOIN_ROW]) -> Optional[TopicWithAuthor]:
+    if not row:
+        return None
+
+    author = UserAPI(user_id=row[7], username=row[8], display_name=row[9], flags=row[10])
+
+    return TopicWithAuthor(topic_id=row[0], author=author, title=row[3], content=row[4],
+                           created_at=mysql_date_to_python(row[5]), flags=row[6], parent_cat=row[1])
+
+
 class TopicRepository:
     """
     TopicRepository implements CRUD operations for Topics.
@@ -58,8 +93,32 @@ class TopicRepository:
                     (topic_id,))
                 return _maybe_row_to_topic(await cur.fetchone())
 
+    async def get_topics_of_category(self, category_id: int, include_hidden=False, limit: int = 20, skip: int = 0) -> \
+            Tuple[int, Tuple[TopicWithAuthor, ...]]:
+        """
+        Returns all topics in a given category, sorting by creation time
+        up to `limit` topics with an offset of `skip` from the beginning of the sorted set.
+
+        Returns a tuple like (total_results, (topics, ...))
+        """
+        fragment = 'FROM threadsTable AS T JOIN loginTable AS U ON T.userID = U.id WHERE T.parent_cat = %s' if include_hidden else f'WHERE parent_cat = %s AND (flags & {TOPIC_IS_HIDDEN}) = 0'
+
+        async with self.__db.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    f'SELECT COUNT(T.threadID) {fragment};',
+                    (category_id,)
+                )
+                total_results = cur.fetchone()[0]
+
+                await cur.execute(
+                    f'SELECT {_JOIN_ROW_SPEC} {fragment} ORDER BY T.createdAt DESC LIMIT %s OFFSET %s;',
+                    (category_id, limit, skip)
+                )
+                return total_results, tuple(_maybe_row_to_topic_author(topic) for topic in await cur.fetchall())
+
     async def get_topics_of_author(self, author_id: int, limit: int = 20, skip: int = 0, include_hidden=False) -> \
-    AsyncGenerator[Topic, None]:
+            AsyncGenerator[Topic, None]:
         """
         Returns a generator over all topics from the given author, sorted by the creation time. This will return
         up to `limit` topics with an offset of `skip` from the beginning of the sorted topic set.
@@ -67,7 +126,7 @@ class TopicRepository:
         async with self.__db.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "SELECT {_ROW_SPEC} FROM threadsTable WHERE authorID = %s ORDER BY createdAt DESC LIMIT %s OFFSET %s;" if include_hidden else f"SELECT {_ROW_SPEC} FROM threadsTable WHERE authorID = %s AND (flags & {TOPIC_IS_HIDDEN}) = 0 ORDER BY createdAt DESC LIMIT %s OFFSET %s;",
+                    f"SELECT {_ROW_SPEC} FROM threadsTable WHERE authorID = %s ORDER BY createdAt DESC LIMIT %s OFFSET %s;" if include_hidden else f"SELECT {_ROW_SPEC} FROM threadsTable WHERE authorID = %s AND (flags & {TOPIC_IS_HIDDEN}) = 0 ORDER BY createdAt DESC LIMIT %s OFFSET %s;",
                     (author_id, limit, skip))
                 while row := await cur.fetchone():
                     yield _maybe_row_to_topic(row)  # is never None
