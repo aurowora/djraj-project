@@ -15,6 +15,7 @@ from argon2.exceptions import VerifyMismatchError
 from fastapi import APIRouter, Depends, Request, HTTPException, Form
 from jwt import encode, decode, InvalidTokenError
 from pydantic import BaseModel, Field
+from pymysql import IntegrityError
 from starlette import status
 from starlette.responses import RedirectResponse
 
@@ -203,7 +204,15 @@ async def register(req: Request, first_name: Annotated[str, Form()], last_name: 
                     flags=0,
                     user_id=None)
 
-    await user_repo.put_user(new_user)
+    try:
+        await user_repo.put_user(new_user)
+    except IntegrityError:
+        # this user already exists
+        raise HTTPException(status_code=status.HTTP_303_SEE_OTHER, headers={'Location': '/register?%s' % urlencode(
+            {
+                'error': 'the provided username is not valid. The username is already in use by another user or is reserved by the administrator.'
+            }
+        )})
 
     # Register OK, log them in
     exp = datetime.now(tz=timezone.utc) + timedelta(seconds=req.app.state.cfg.login.login_ttl)
