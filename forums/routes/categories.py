@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Form, Request
+from pydantic import Field
 from starlette import status
 from starlette.responses import RedirectResponse
 
@@ -50,7 +51,6 @@ async def create_category(
         name: Annotated[str, Form()], desc: Annotated[str, Form()], parent: Annotated[int | None, Form()],
         csrf_token: Annotated[str, Form()], user: User = Depends(current_user),
         cat_repo: CategoryRepository = Depends(get_category_repo)):
-
     # check privs
     if not user.is_moderator():
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='You do not have permission to do this.')
@@ -59,7 +59,8 @@ async def create_category(
 
     # check that the name / desc has valid chars and isnt too long
     if not (0 < len(name) <= CATEGORY_NAME_MAX_SIZE) and _CATEGORY_ALLOWED_CHARS.match(name) is not None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f'Category name must be between 0 and {CATEGORY_NAME_MAX_SIZE} characters.')
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f'Category name must be between 0 and {CATEGORY_NAME_MAX_SIZE} characters.')
     if not (0 < len(desc) <= CATEGORY_DESC_MAX_SIZE) and _CATEGORY_ALLOWED_CHARS.match(desc) is not None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f'Category description must be between 0 '
                                                                             f'and {CATEGORY_DESC_MAX_SIZE} characters')
@@ -77,8 +78,30 @@ async def create_category(
 
 
 @cat_router.delete('/{cat_id}')
-async def delete_category(cat_id: int, csrf_token: str, user: User = Depends(current_user)):
-    raise NotImplemented
+async def delete_category(
+        req: Request,
+        cat_id: int,
+        csrf_token: str,
+        user: User = Depends(current_user),
+        cat_repo: CategoryRepository = Depends(get_category_repo)):
+    # check priv
+    if not user.is_moderator():
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Only moderators can delete categories.')
+
+    csrf_verify(req, csrf_token)
+
+    # load category from db
+    if (cat := await cat_repo.get_category_by_id(cat_id)) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No such category exists.')
+
+    # todo catch fk error if we try to delete a category that still has children
+    await cat_repo.delete_category(cat_id)
+
+    # returns to the parent, if one
+    if cat.parent_cat is not None:
+        return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER, url=f'/categories/{cat.parent_cat}')
+    else:
+        return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER, url='/')
 
 
 @cat_router.patch('/{cat_id}')

@@ -43,6 +43,21 @@ class CategoryRepository:
                 while row := await cur.fetchone():
                     yield _maybe_row_to_category(row)
 
+    async def delete_category(self, cat_id: int) -> None:
+        """
+        Deletes the target category.
+
+        Note that if the DB enforces FK constraints, this will fail if the category has any children.
+
+        cat_id must not be None as it doesn't make any sense to delete the root.
+        """
+        assert cat_id is not None
+
+        async with self.__db.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute('DELETE FROM categories WHERE id = %s LIMIT 1;', (cat_id, ))
+                return await cur.fetchone()[0]
+
     async def put_category(self, cat: Category) -> int:
         """
         Saves the category into the database. If the category already exists, it is updated.
