@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Form, Request
 from pydantic import Field, BaseModel
+from pymysql import IntegrityError
 from starlette import status
 from starlette.responses import RedirectResponse
 
@@ -82,8 +83,10 @@ async def create_category(
     # insert
     new_cat = Category(cat_name=name, cat_desc=desc, parent_cat=parent, id=None)
 
-    # todo catch fk vio
-    await cat_repo.put_category(new_cat)
+    try:
+        await cat_repo.put_category(new_cat)
+    except IntegrityError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='The parent category is not valid.')
 
     # Take them to the new category page
     if new_cat.id is None:
@@ -108,8 +111,11 @@ async def delete_category(
     if (cat := await cat_repo.get_category_by_id(cat_id)) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No such category exists.')
 
-    # todo catch fk error if we try to delete a category that still has children
-    await cat_repo.delete_category(cat_id)
+    try:
+        await cat_repo.delete_category(cat_id)
+    except IntegrityError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='The category must have no subcategories '
+                                                                            'and no topics before it can be deleted.')
 
     # returns to the parent, if one
     if cat.parent_cat is not None:
@@ -158,8 +164,10 @@ async def patch_category(req: Request,
             cat.parent_cat = patch.set_parent
 
     # try commit
-    # todo: catch fk vio when category parent update is not valid
-    await cat_repo.put_category(cat)
+    try:
+        await cat_repo.put_category(cat)
+    except IntegrityError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='The parent category is not valid.')
 
     # todo: better integrate with the front end
     return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER, url=f'/categories/{cat.id}')
