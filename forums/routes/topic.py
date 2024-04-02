@@ -8,10 +8,11 @@ from starlette.responses import RedirectResponse, Response
 
 from forums.db.topics import TOPIC_ALL_FLAGS, Topic, TopicRepository, TOPIC_IS_HIDDEN, TOPIC_IS_PINNED
 from forums.db.users import User, IS_USER_RESTRICTED, IS_USER_MODERATOR, UserRepository, get_user_repo
+from forums.models import UserAPI
 from forums.routes.auth import current_user, csrf_verify
 import regex  # use instead of re for more advanced regex support
 
-from forums.utils import get_topic_repo, UserAPI
+from forums.utils import get_topic_repo
 
 topic_router = APIRouter()
 
