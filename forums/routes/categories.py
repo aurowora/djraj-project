@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Form, Request
-from pydantic import Field
+from pydantic import Field, BaseModel
 from starlette import status
 from starlette.responses import RedirectResponse
 
@@ -20,6 +20,24 @@ TOPICS_PER_PAGE = 20
 _CATEGORY_ALLOWED_CHARS = regex.compile(r"$[\P{Cc}\P{Cn}\P{Cs}]+^")
 CATEGORY_NAME_MAX_SIZE = 64
 CATEGORY_DESC_MAX_SIZE = 128
+
+
+def _assert_name_is_valid(name: str):
+    """
+    Raises an exception if the provided string is not a valid category name
+    """
+    if not (0 < len(name) <= CATEGORY_NAME_MAX_SIZE) and _CATEGORY_ALLOWED_CHARS.match(name) is not None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f'Category name must be between 0 and {CATEGORY_NAME_MAX_SIZE} characters.')
+
+
+def _assert_desc_is_valid(desc: str):
+    """
+    Raises an exception if the provided string is not a valid category description
+    """
+    if not (0 < len(desc) <= CATEGORY_DESC_MAX_SIZE) and _CATEGORY_ALLOWED_CHARS.match(desc) is not None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f'Category description must be between 0 '
+                                                                            f'and {CATEGORY_DESC_MAX_SIZE} characters')
 
 
 @cat_router.get('/{cat_id}')
@@ -58,12 +76,8 @@ async def create_category(
     csrf_verify(req, csrf_token)
 
     # check that the name / desc has valid chars and isnt too long
-    if not (0 < len(name) <= CATEGORY_NAME_MAX_SIZE) and _CATEGORY_ALLOWED_CHARS.match(name) is not None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                            detail=f'Category name must be between 0 and {CATEGORY_NAME_MAX_SIZE} characters.')
-    if not (0 < len(desc) <= CATEGORY_DESC_MAX_SIZE) and _CATEGORY_ALLOWED_CHARS.match(desc) is not None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f'Category description must be between 0 '
-                                                                            f'and {CATEGORY_DESC_MAX_SIZE} characters')
+    _assert_name_is_valid(name)
+    _assert_desc_is_valid(desc)
 
     # insert
     new_cat = Category(cat_name=name, cat_desc=desc, parent_cat=parent, id=None)
@@ -104,6 +118,48 @@ async def delete_category(
         return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER, url='/')
 
 
+class CategoryPatchDesc(BaseModel):
+    set_name: str | None = Field(gt=0, le=CATEGORY_NAME_MAX_SIZE)
+    set_desc: str | None = Field(gt=0, le=CATEGORY_DESC_MAX_SIZE)
+    # note: the meaning of this is ambiguous because in some places None indicates the root
+    # but here it will indicate "do not change." As such, for this call, the root is specified using
+    # any values less than 0
+    set_parent: int | None
+
+    csrf_token: str
+
+
 @cat_router.patch('/{cat_id}')
-async def patch_category(cat_id: int, user: User = Depends(current_user)):
-    raise NotImplemented
+async def patch_category(req: Request,
+                         cat_id: int, patch: CategoryPatchDesc, user: User = Depends(current_user),
+                         cat_repo: CategoryRepository = Depends(get_category_repo)):
+    # check priv
+    if not user.is_moderator():
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Only moderators can edit categories.')
+
+    csrf_verify(req, patch.csrf_token)
+
+    # load category and update it according to patch
+    if (cat := await cat_repo.get_category_by_id(cat_id)) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No such category exists.')
+
+    if patch.set_name is not None:
+        _assert_name_is_valid(patch.set_name)
+        cat.cat_name = patch.set_name
+
+    if patch.set_desc is not None:
+        _assert_desc_is_valid(patch.set_desc)
+        cat.cat_desc = patch.set_desc
+
+    if patch.set_parent is not None:
+        if patch.set_parent < 0:
+            cat.parent_cat = None
+        else:
+            cat.parent_cat = patch.set_parent
+
+    # try commit
+    # todo: catch fk vio when category parent update is not valid
+    await cat_repo.put_category(cat)
+
+    # todo: better integrate with the front end
+    return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER, url=f'/categories/{cat.id}')
