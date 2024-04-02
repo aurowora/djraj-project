@@ -2,6 +2,7 @@ from fastapi import Form, APIRouter, Depends, HTTPException, Request
 from typing import Annotated, Optional
 
 from pydantic import BaseModel, Field
+from pymysql import IntegrityError
 from starlette import status
 from starlette.responses import RedirectResponse, Response
 
@@ -55,8 +56,10 @@ async def create_topic(req: Request,
     topic = Topic(topic_id=None, parent_cat=category, title=title,
                   content=content, flags=create_flags, author=user.user_id)
 
-    # TODO: Catch FK violation on bad category insert and display user friendly error
-    await topic_repo.put_topic(topic)
+    try:
+        await topic_repo.put_topic(topic)
+    except IntegrityError:
+        raise HTTPException(status_code=400, detail='Target category is not valid.')
 
     # Send the user to the topic they just created
     return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER, url=f'/topic/{topic.topic_id}',
@@ -201,7 +204,10 @@ async def update_topic(req: Request, patch_spec: TopicPatchSpec, topic_id: int =
 
     # Commit if anything change
     if dirty:
-        await topic_repo.put_topic(topic)
+        try:
+            await topic_repo.put_topic(topic)
+        except IntegrityError:
+            raise HTTPException(status_code=400, detail='Cannot set category of topic because the target category is not valid.')
 
     # TODO: figure out how to integrate this with the front end
     return Response(status_code=status.HTTP_204_NO_CONTENT)
