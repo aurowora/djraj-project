@@ -15,7 +15,7 @@ class Post(BaseModel):
     topic_id: int
     author_id: int
     content: str
-    created_at: datetime
+    created_at: Optional[datetime]
     flags: int
 
 
@@ -57,7 +57,6 @@ class PostRepository:
         """
         async with conn.cursor() as cur:
             return await cur.execute('DELETE FROM postsTable WHERE threadID = %s;', topic_id)
-
 
     async def put_post(self, post: Post) -> int:
         async with self.__db.acquire() as conn:

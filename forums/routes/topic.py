@@ -6,13 +6,14 @@ from pymysql import IntegrityError
 from starlette import status
 from starlette.responses import RedirectResponse, Response
 
+from forums.db.posts import PostRepository, Post
 from forums.db.topics import TOPIC_ALL_FLAGS, Topic, TopicRepository, TOPIC_IS_HIDDEN, TOPIC_IS_PINNED
 from forums.db.users import User, IS_USER_RESTRICTED, IS_USER_MODERATOR, UserRepository, get_user_repo
 from forums.models import UserAPI
 from forums.routes.auth import current_user, csrf_verify
 import regex  # use instead of re for more advanced regex support
 
-from forums.utils import get_topic_repo
+from forums.utils import get_topic_repo, get_post_repo
 
 topic_router = APIRouter()
 
@@ -214,3 +215,37 @@ async def update_topic(req: Request, patch_spec: TopicPatchSpec, topic_id: int =
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@topic_router.post('/{topic_id}/reply')
+async def reply_to_topic(req: Request, topic_id: int, content: Annotated[str, Form()], csrf_token: Annotated[str, Form()], user: User = Depends(current_user),
+                         topic_repo: TopicRepository = Depends(get_topic_repo), post_repo: PostRepository = Depends(get_post_repo)):
+    if user.is_restricted():
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='You do not have permission to do this.')
+
+    # csrf chk
+    csrf_verify(req, csrf_token)
+
+    # get topic
+    topic = await topic_repo.get_topic_by_id(topic_id)
+    if not topic:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='There is no such topic.')
+
+    # only mods can reply to hidden topics
+    if (topic.flags & TOPIC_IS_HIDDEN == TOPIC_IS_HIDDEN) and not user.is_moderator():
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='You do not have permission to do this.')
+
+    # check topic contents
+    if __TOPIC_ALLOW_MOST_CHARS.match(content) is None or not (0 < len(content) <= MAX_TOPIC_CONTENT_LEN):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail='Post content is too long or contains illegal characters.')
+
+    # commit
+    post = Post(post_id=None,
+                topic_id=topic_id,
+                author_id=user.user_id,
+                content=content,
+                created_at=None,
+                flags=0)
+
+    await post_repo.put_post(post)
+
+    return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER, url=f'/{topic_id}/')

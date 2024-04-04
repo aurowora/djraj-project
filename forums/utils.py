@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 from forums.db.categories import CategoryRepository
 from forums.db.topics import TopicRepository
+from forums.db.posts import PostRepository
 from forums.db.users import User
 
 
@@ -18,6 +19,10 @@ def get_topic_repo(req: Request) -> TopicRepository:
 
 def get_category_repo(req: Request) -> CategoryRepository:
     return CategoryRepository(req.app.state.db)
+
+
+def get_post_repo(req: Request) -> PostRepository:
+    return PostRepository(req.app.state.db)
 
 
 async def async_collect[T](gen: AsyncGenerator[T, None]) -> Tuple[T, ...]:
