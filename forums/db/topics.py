@@ -51,7 +51,8 @@ class TopicWithAuthor(BaseModel):
     content: str
     created_at: Optional[datetime]
     flags: int = 0
-    num_replies: int = 0
+    num_replies: int
+    most_recent_reply: Optional[datetime]
 
     def into_topic(self) -> Topic:
         """
@@ -61,7 +62,7 @@ class TopicWithAuthor(BaseModel):
                      title=self.title, content=self.content, created_at=self.created_at, flags=self.flags)
 
 
-_JOIN_ROW = Tuple[int, int, int, str, str, str, int, int, str, str, int, int]
+_JOIN_ROW = Tuple[int, int, int, str, str, str, int, int, str, str, int, int, datetime]
 
 
 def _maybe_row_to_topic_author(row: Optional[_JOIN_ROW]) -> Optional[TopicWithAuthor]:
@@ -71,7 +72,7 @@ def _maybe_row_to_topic_author(row: Optional[_JOIN_ROW]) -> Optional[TopicWithAu
     author = UserAPI(user_id=row[7], username=row[8], display_name=row[9], flags=row[10])
 
     return TopicWithAuthor(topic_id=row[0], author=author, title=row[3], content=row[4],
-                           created_at=mysql_date_to_python(row[5]), flags=row[6], parent_cat=row[1], num_replies = row[11])
+                           created_at=mysql_date_to_python(row[5]), flags=row[6], parent_cat=row[1], num_replies=row[11], most_recent_reply=row[12])
 
 
 class TopicRepository:
@@ -111,10 +112,10 @@ class TopicRepository:
                         {where_clause}
                     ),
                 PCQ AS (
-                    SELECT TQ.*, COUNT(P.postID) FROM TQ LEFT OUTER JOIN postsTable AS P ON TQ.thr_id = P.threadID GROUP BY TQ.thr_id
+                    SELECT TQ.*, COUNT(P.postID), MAX(P.createdAt) AS most_recent_repl FROM TQ LEFT OUTER JOIN postsTable AS P ON TQ.thr_id = P.threadID GROUP BY TQ.thr_id
                 )
             SELECT * FROM PCQ
-            ORDER BY PCQ.topic_created DESC, PCQ.topic_title LIMIT %s OFFSET %s;
+            ORDER BY PCQ.most_recent_repl DESC, PCQ.topic_created DESC, PCQ.topic_title LIMIT %s OFFSET %s;
         '''
 
         query_count = f'''
