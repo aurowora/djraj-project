@@ -97,7 +97,7 @@ class TopicRepository:
     async def generate_category_list_data(self, category_id: int, include_hidden=False, limit: int = 20, skip: int = 0) -> \
             Tuple[int, Tuple[TopicWithAuthor, ...]]:
         """
-        Returns all topics in a given category, sorting by creation time
+        Returns all topics in a given category, sorting by most recent post time, creation time, and title
         up to `limit` topics with an offset of `skip` from the beginning of the sorted set.
 
         Returns a tuple like (total_results, (topics, ...))

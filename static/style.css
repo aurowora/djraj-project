@@ -195,3 +195,34 @@ footer {
 .topic-title {
     flex-grow: 1;
 }
+
+.topic-info {
+    text-align: right;
+}
+
+.category-header h2 {
+    margin-bottom: 2px;
+}
+
+
+.subcat {
+    border-color: black;
+    border-width: 2px;
+    border-style: solid;
+    padding: 5px;
+
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+.section-header {
+    margin-top: 0;
+    margin-bottom: 5px;
+}
+
+.topics {
+    padding: 5px;
+
+    margin-top: 10px;
+    margin-bottom: 10px;
+}

@@ -27,7 +27,58 @@
     -->
     <main>
         <div class="container">
-            <section id="topics-section">
+            <!-- TODO: We need to:
+                        1) Expose the ability to delete a category to moderators
+                        2) Expose the ability to create subcategories to moderators
+                        3) Add some sort of breadcrumb so that we can navigate back to the parent category
+            -->
+            <div class="category-header">
+                <h2>{{ category.cat_name }}</h2>
+                {{ category.cat_desc }}
+            </div>
+
+            {% if children|length > 0 or user.is_moderator() %}
+                <section class="subcat">
+                    <h3 class="section-header">Subcategories ({{ children|length }})</h3>
+                    {% if children|length > 0 %}
+                        {% for (child, num_topics) in children %}
+                            <div class="topic-row">
+                                <div class="topic-title">
+                                    <a href="/categories/{{ child.id }}/">{{ child.cat_name }}</a>
+                                    <br />
+                                    {{ child.cat_desc }}
+                                </div>
+
+                                <div class="topic-info">
+                                    {% if num_topics == 1 %}
+                                        1 Topic
+                                    {% else %}
+                                        {{ num_topics }} Topics
+                                    {% endif %}
+                                </div>
+                            </div>
+
+
+                            {% if not loop.last %}
+                                <hr />
+                            {% endif %}
+
+                        {% endfor %}
+                    {% else %}
+                    This category has no subcategories. <a href="/new_category?childOf={{ category.id }}">Create one?</a>
+                    {% endif %}
+                </section>
+            {% endif %}
+
+            <!--
+                TODO: We need to handle
+                    1) having multiple pages of topics (pagination)
+                    2) cases where there are no topics (display a message like we do for having no subcategories for a moderator)
+                    3) allow the user to make a new topic (add a button for this?)
+             -->
+            <section class="topics">
+                <h3 class="section-header">Topics ({{ total_results }})</h3>
+
                 {% for topic in topics %}
                     <div class="topic-row">
                         <div class="topic-title">
@@ -45,7 +96,7 @@
 
                             {% if topic.most_recent_reply %}
                                 <br/>
-                                Latest reply on {{ topic.most_recent_reply }}
+                                Last reply on {{ topic.most_recent_reply }}
                             {% endif %}
                         </div>
                     </div>

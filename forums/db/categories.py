@@ -32,16 +32,25 @@ class CategoryRepository:
                 await cur.execute(f"SELECT {_ROW_SPEC} FROM categories WHERE id = %s;", (cat_id, ))
                 return _maybe_row_to_category(await cur.fetchone())
 
-    async def get_subcategories_of_category(self, cat_id: Optional[int]) -> AsyncGenerator[Category, None]:
+    async def get_subcategories_of_category(self, cat_id: Optional[int]) -> AsyncGenerator[Tuple[Category, int], None]:
         """
-        Returns a stream of category objects that are children of the category given in `cat_id`.
+        Returns a stream of (category, num_topics) objects that are children of the category given in `cat_id`.
         If the `cat_id` is None, then all root level categories are returned.
         """
+
+        q = f'''
+            SELECT C.id, C.cat_name, C.cat_desc, C.parent_cat, COUNT(T.threadID) AS topic_count FROM categories AS C
+            LEFT OUTER JOIN threadsTable AS T ON T.parent_cat = C.id
+            WHERE C.parent_cat = %s
+            GROUP BY C.id
+            ORDER BY topic_count DESC;
+        '''
+
         async with self.__db.acquire() as conn:
             async with conn.cursor() as cur:
-                await cur.execute(f"SELECT {_ROW_SPEC} FROM categories WHERE parent_cat = %s ORDER BY cat_name ASC;", (cat_id, ))
+                await cur.execute(q, (cat_id, ))
                 while row := await cur.fetchone():
-                    yield _maybe_row_to_category(row)
+                    yield _maybe_row_to_category(row[:4]), row[4]
 
     async def delete_category(self, cat_id: int) -> None:
         """

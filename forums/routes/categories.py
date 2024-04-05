@@ -67,7 +67,9 @@ async def category_index(req: Request, cat_id: int, page: int = 1, user: User = 
         'topics': topics,
         'children': subcat,
         'current_page': page,
-        'total_pages': (total_results // TOPICS_PER_PAGE) + 1
+        'total_pages': (total_results // TOPICS_PER_PAGE) + 1,
+        'total_results': total_results,
+        'user': user,
     }
 
     return tpl.TemplateResponse(req, name='cat_index.html', context=ctx)
