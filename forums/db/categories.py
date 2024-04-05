@@ -39,7 +39,7 @@ class CategoryRepository:
         """
         async with self.__db.acquire() as conn:
             async with conn.cursor() as cur:
-                await cur.execute("SELECT {_ROW_SPEC} FROM categories WHERE parent_cat = %s ORDER BY cat_name ASC;", (cat_id, ))
+                await cur.execute(f"SELECT {_ROW_SPEC} FROM categories WHERE parent_cat = %s ORDER BY cat_name ASC;", (cat_id, ))
                 while row := await cur.fetchone():
                     yield _maybe_row_to_category(row)
 

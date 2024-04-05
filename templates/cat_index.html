@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ category.cat_name }} - Forum</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="logo-container">
+                <img src="/static/uno-logo.png" alt="University of Nebraska Logo" class="logo">
+            </div>
+        </div>
+    </header>
+    <!--
+    <nav>
+        <div class="container">
+            <form id="search-form">
+                <input type="text" id="search-input" placeholder="Search topics...">
+                <button type="submit">Search</button>
+            </form>
+        </div>
+    </nav>
+    -->
+    <main>
+        {% include 'topic_list.html' %}
+    </main>
+    <footer>
+        <div class="container">
+            <p>&copy; 2024 University of Nebraska Forum</p>
+        </div>
+    </footer>
+</body>
+</html>

@@ -1,11 +1,13 @@
 import re
 from datetime import datetime
+from typing import Any
 
 __MYSQL_TS_FORMAT = '%Y-%m-%d %H:%M:%S'
 
 
-def mysql_date_to_python(d: str) -> datetime:
-    return datetime.strptime(d, __MYSQL_TS_FORMAT)
+def mysql_date_to_python(d: Any) -> datetime:
+    # todo: remove this function, it's a noop
+    return d
 
 
 __MYSQL_ESCAPE_LIKE_REGEX = re.compile(r'(?P<tok>[%\\_])', flags=re.RegexFlag.UNICODE)

@@ -138,7 +138,7 @@ class TopicPatchSpec(BaseModel):
 
 
 @topic_router.patch('/{topic_id}')
-async def update_topic(req: Request, patch_spec: TopicPatchSpec, topic_id: int = Field(ge=0),
+async def update_topic(req: Request, patch_spec: TopicPatchSpec, topic_id: int,
                        topic_repo: TopicRepository = Depends(get_topic_repo),
                        user_repo: UserRepository = Depends(get_user_repo),
                        user: User = Depends(current_user)):

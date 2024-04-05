@@ -26,4 +26,4 @@ def get_post_repo(req: Request) -> PostRepository:
 
 
 async def async_collect[T](gen: AsyncGenerator[T, None]) -> Tuple[T, ...]:
-    return tuple(x async for x in gen)
+    return tuple([x async for x in gen])

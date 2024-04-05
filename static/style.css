@@ -185,3 +185,13 @@ footer {
     background-color: #ed5353;
     border-radius: 0.25em;
 }
+
+.topic-row {
+    display: flex;
+    flex-direction: row;
+    padding: 5px;
+}
+
+.topic-title {
+    flex-grow: 1;
+}

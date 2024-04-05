@@ -3,6 +3,7 @@ from pydantic import Field, BaseModel
 from pymysql import IntegrityError
 from starlette import status
 from starlette.responses import RedirectResponse
+from starlette.templating import Jinja2Templates
 
 from forums.db.categories import CategoryRepository, Category
 from forums.db.topics import TopicRepository
@@ -13,7 +14,7 @@ from asyncio import gather
 from typing import Annotated
 import regex
 
-from forums.utils import get_category_repo, get_topic_repo, async_collect
+from forums.utils import get_category_repo, get_topic_repo, async_collect, get_templates
 
 cat_router = APIRouter()
 TOPICS_PER_PAGE = 20
@@ -42,9 +43,10 @@ def _assert_desc_is_valid(desc: str):
 
 
 @cat_router.get('/{cat_id}')
-async def category_index(cat_id: int, page: int, user: User = Depends(current_user),
+async def category_index(req: Request, cat_id: int, page: int = 1, user: User = Depends(current_user),
                          cat_repo: CategoryRepository = Depends(get_category_repo),
-                         topic_repo: TopicRepository = Depends(get_topic_repo)):
+                         topic_repo: TopicRepository = Depends(get_topic_repo),
+                         tpl: Jinja2Templates = Depends(get_templates)):
     if page < 1:
         raise HTTPException(status_code=400, detail='page number must be greater than 0')
 
@@ -60,8 +62,15 @@ async def category_index(cat_id: int, page: int, user: User = Depends(current_us
     if cat is None:
         raise HTTPException(status_code=404, detail='No such category')
 
-    # TODO: Render template once one exists
-    raise NotImplemented
+    ctx = {
+        'category': cat,
+        'topics': topics,
+        'children': subcat,
+        'current_page': page,
+        'total_pages': (total_results // TOPICS_PER_PAGE) + 1
+    }
+
+    return tpl.TemplateResponse(req, name='cat_index.html', context=ctx)
 
 
 @cat_router.post('/create')

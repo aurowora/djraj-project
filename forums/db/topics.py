@@ -101,7 +101,7 @@ class TopicRepository:
 
         Returns a tuple like (total_results, (topics, ...))
         """
-        where_clause = 'WHERE T.parent_cat = %s' if include_hidden else f'WHERE parent_cat = %s AND (flags & {TOPIC_IS_HIDDEN}) = 0'
+        where_clause = 'WHERE T.parent_cat = %s' if include_hidden else f'WHERE parent_cat = %s AND (T.flags & {TOPIC_IS_HIDDEN}) = 0'
         fragment = f'FROM threadsTable AS T JOIN loginTable AS U ON T.userID = U.id {where_clause}'
 
         async with self.__db.acquire() as conn:
@@ -110,7 +110,7 @@ class TopicRepository:
                     f'SELECT COUNT(T.threadID) {fragment};',
                     (category_id,)
                 )
-                total_results = cur.fetchone()[0]
+                total_results = (await cur.fetchone())[0]
 
                 await cur.execute(
                     f'SELECT {_JOIN_ROW_SPEC} {fragment} ORDER BY T.createdAt DESC LIMIT %s OFFSET %s;',
