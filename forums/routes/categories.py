@@ -53,10 +53,10 @@ async def category_index(req: Request, cat_id: int, page: int = 1, user: User = 
     offset = (page - 1) * TOPICS_PER_PAGE
 
     cat, (total_results, topics), subcat = await gather(cat_repo.get_category_by_id(cat_id),
-                                                        topic_repo.get_topics_of_category(cat_id,
-                                                                                          include_hidden=user.is_moderator(),
-                                                                                          limit=TOPICS_PER_PAGE,
-                                                                                          skip=offset),
+                                                        topic_repo.generate_category_list_data(cat_id,
+                                                                                               include_hidden=user.is_moderator(),
+                                                                                               limit=TOPICS_PER_PAGE,
+                                                                                               skip=offset),
                                                         async_collect(cat_repo.get_subcategories_of_category(cat_id)))
 
     if cat is None:

@@ -5,14 +5,16 @@
                 <div class="topic-title">
                     <a href="/topic/{{ topic.topic_id }}">{{ topic.title }}</a>
                     <br/>
-                    <a href="/users/{{ topic.author.user_id }}">{{ topic.author.display_name }}</a>
+                    <a href="/users/{{ topic.author.user_id }}">by {{ topic.author.display_name }}</a>
                 </div>
 
                 <div class="topic-info">
+                    Posted {{ topic.created_at }}
+                    <br/>
                     {% if topic.replies == 1 %}
                         1 Reply
                     {% else %}
-                        {{ topic.replies }} Replies
+                        {{ topic.num_replies }} Replies
                     {% endif %}
                 </div>
             </div>

@@ -51,6 +51,7 @@ class TopicWithAuthor(BaseModel):
     content: str
     created_at: Optional[datetime]
     flags: int = 0
+    num_replies: int = 0
 
     def into_topic(self) -> Topic:
         """
@@ -60,8 +61,7 @@ class TopicWithAuthor(BaseModel):
                      title=self.title, content=self.content, created_at=self.created_at, flags=self.flags)
 
 
-_JOIN_ROW_SPEC = 'T.threadID, T.parent_cat, T.userID, T.title, T.content, T.createdAt, T.flags, U.id, U.MYUSER, U.display_name, U.flags'
-_JOIN_ROW = Tuple[int, int, int, str, str, str, int, int, str, str, int]
+_JOIN_ROW = Tuple[int, int, int, str, str, str, int, int, str, str, int, int]
 
 
 def _maybe_row_to_topic_author(row: Optional[_JOIN_ROW]) -> Optional[TopicWithAuthor]:
@@ -71,7 +71,7 @@ def _maybe_row_to_topic_author(row: Optional[_JOIN_ROW]) -> Optional[TopicWithAu
     author = UserAPI(user_id=row[7], username=row[8], display_name=row[9], flags=row[10])
 
     return TopicWithAuthor(topic_id=row[0], author=author, title=row[3], content=row[4],
-                           created_at=mysql_date_to_python(row[5]), flags=row[6], parent_cat=row[1])
+                           created_at=mysql_date_to_python(row[5]), flags=row[6], parent_cat=row[1], num_replies = row[11])
 
 
 class TopicRepository:
@@ -93,7 +93,7 @@ class TopicRepository:
                     (topic_id,))
                 return _maybe_row_to_topic(await cur.fetchone())
 
-    async def get_topics_of_category(self, category_id: int, include_hidden=False, limit: int = 20, skip: int = 0) -> \
+    async def generate_category_list_data(self, category_id: int, include_hidden=False, limit: int = 20, skip: int = 0) -> \
             Tuple[int, Tuple[TopicWithAuthor, ...]]:
         """
         Returns all topics in a given category, sorting by creation time
@@ -102,18 +102,35 @@ class TopicRepository:
         Returns a tuple like (total_results, (topics, ...))
         """
         where_clause = 'WHERE T.parent_cat = %s' if include_hidden else f'WHERE parent_cat = %s AND (T.flags & {TOPIC_IS_HIDDEN}) = 0'
-        fragment = f'FROM threadsTable AS T JOIN loginTable AS U ON T.userID = U.id {where_clause}'
+
+        query_res = f'''
+            WITH
+                TQ AS (
+                        SELECT T.threadID as thr_id, T.parent_cat, T.userID AS thr_author, T.title AS topic_title, T.content AS thr_content, T.createdAt AS topic_created, T.flags AS tflags, U.id, U.MYUSER, U.display_name, U.flags AS uflags
+                        FROM threadsTable AS T JOIN loginTable AS U ON T.userID = U.id
+                        {where_clause}
+                    ),
+                PCQ AS (
+                    SELECT TQ.*, COUNT(P.postID) FROM TQ LEFT OUTER JOIN postsTable AS P ON TQ.thr_id = P.threadID GROUP BY TQ.thr_id
+                )
+            SELECT * FROM PCQ
+            ORDER BY PCQ.topic_created DESC, PCQ.topic_title LIMIT %s OFFSET %s;
+        '''
+
+        query_count = f'''
+            SELECT COUNT(T.threadID) FROM threadsTable AS T JOIN loginTable AS U ON T.userID = U.id {where_clause};
+        '''
 
         async with self.__db.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    f'SELECT COUNT(T.threadID) {fragment};',
+                    query_count,
                     (category_id,)
                 )
                 total_results = (await cur.fetchone())[0]
 
                 await cur.execute(
-                    f'SELECT {_JOIN_ROW_SPEC} {fragment} ORDER BY T.createdAt DESC LIMIT %s OFFSET %s;',
+                    query_res,
                     (category_id, limit, skip)
                 )
                 return total_results, tuple(_maybe_row_to_topic_author(topic) for topic in await cur.fetchall())
