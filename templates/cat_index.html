@@ -33,16 +33,19 @@
                         <div class="topic-title">
                             <a href="/topic/{{ topic.topic_id }}">{{ topic.title }}</a>
                             <br/>
-                            <a href="/users/{{ topic.author.user_id }}">by {{ topic.author.display_name }}</a>
+                            Posted by <a href="/users/{{ topic.author.user_id }}">{{ topic.author.display_name }}</a> on {{ topic.created_at }}
                         </div>
 
                         <div class="topic-info">
-                            Posted {{ topic.created_at }}
-                            <br/>
-                            {% if topic.replies == 1 %}
+                            {% if topic.num_replies == 1 %}
                                 1 Reply
                             {% else %}
                                 {{ topic.num_replies }} Replies
+                            {% endif %}
+
+                            {% if topic.most_recent_reply %}
+                                <br/>
+                                Latest reply on {{ topic.most_recent_reply }}
                             {% endif %}
                         </div>
                     </div>
