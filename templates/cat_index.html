@@ -70,13 +70,12 @@
                 </section>
             {% endif %}
 
-            <!--
-                TODO: We need to handle
-                    1) cases where there are no topics (display a message like we do for having no subcategories for a moderator)
-                    2) allow the user to make a new topic (add a button for this?)
-             -->
             <section class="topics">
-                <h3 class="section-header">Topics ({{ total_results }})</h3>
+                <div class="topic-header-wrapper">
+                    <h3 class="section-header">Topics ({{ total_results }})</h3>
+                    <a href="/new_topic?childOf={{ category.id }}">New Topic</a>
+                </div>
+
 
                 {% if total_pages > 1 %}
                     <div class="pagination">
@@ -106,32 +105,36 @@
                     </div>
                 {% endif %}
 
-                {% for topic in topics %}
-                    <div class="topic-row">
-                        <div class="topic-title">
-                            <a href="/topic/{{ topic.topic_id }}">{{ topic.title }}</a>
-                            <br/>
-                            Posted by <a href="/users/{{ topic.author.user_id }}">{{ topic.author.display_name }}</a> on {{ topic.created_at }}
-                        </div>
-
-                        <div class="topic-info">
-                            {% if topic.num_replies == 1 %}
-                                1 Reply
-                            {% else %}
-                                {{ topic.num_replies }} Replies
-                            {% endif %}
-
-                            {% if topic.most_recent_reply %}
+                {% if total_results > 0 %}
+                    {% for topic in topics %}
+                        <div class="topic-row">
+                            <div class="topic-title">
+                                <a href="/topic/{{ topic.topic_id }}">{{ topic.title }}</a>
                                 <br/>
-                                Last reply on {{ topic.most_recent_reply }}
-                            {% endif %}
-                        </div>
-                    </div>
+                                Posted by <a href="/users/{{ topic.author.user_id }}">{{ topic.author.display_name }}</a> on {{ topic.created_at }}
+                            </div>
 
-                    {% if not loop.last %}
-                        <hr />
-                    {% endif %}
-                {% endfor %}
+                            <div class="topic-info">
+                                {% if topic.num_replies == 1 %}
+                                    1 Reply
+                                {% else %}
+                                    {{ topic.num_replies }} Replies
+                                {% endif %}
+
+                                {% if topic.most_recent_reply %}
+                                    <br/>
+                                    Last reply on {{ topic.most_recent_reply }}
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        {% if not loop.last %}
+                            <hr />
+                        {% endif %}
+                    {% endfor %}
+                {% else %}
+                    This category has no topics. <a href="/new_topic?childOf={{ category.id }}">Create one?</a>
+                {% endif %}
             </section>
         </div>
     </main>
