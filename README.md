@@ -6,8 +6,11 @@ Introduction to Software Engineering Project
 
 - `forums` - Main python package. All Python code should live in here.
 - `forums/main.py` - This is the file that is run to start the application. See below for details.
+- `static` - Web resources that are served under the /static route inside the application.
+- `templates` - HTML template files called by the application while rendering the application's pages.
 - `poetry.lock`, `pyproject.toml` - These files are used by poetry to manage dependency versions.
 - `.gitignore` - Defines what items should not be committed into git. 
+- `up.sql` - DDL commands that can be used to initialize a database for use with the application
 - `README.md` - You are here.
 
 ## Setting up your Environment
