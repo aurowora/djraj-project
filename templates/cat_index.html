@@ -29,8 +29,7 @@
         <div class="container">
             <!-- TODO: We need to:
                         1) Expose the ability to delete a category to moderators
-                        2) Expose the ability to create subcategories to moderators
-                        3) Add some sort of breadcrumb so that we can navigate back to the parent category
+                        2) Add some sort of breadcrumb so that we can navigate back to the parent category
             -->
             <div class="category-header">
                 <h2>{{ category.cat_name }}</h2>
@@ -39,7 +38,12 @@
 
             {% if children|length > 0 or user.is_moderator() %}
                 <section class="subcat">
-                    <h3 class="section-header">Subcategories ({{ children|length }})</h3>
+                    <div class="topic-header-wrapper">
+                        <h3 class="section-header">Subcategories ({{ children|length }})</h3>
+                        <a href="/new_category?childOf={{ category.id }}">New Subcategory</a>
+                    </div>
+
+
                     {% if children|length > 0 %}
                         {% for (child, num_topics) in children %}
                             <div class="topic-row">
