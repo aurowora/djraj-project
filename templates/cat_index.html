@@ -72,12 +72,39 @@
 
             <!--
                 TODO: We need to handle
-                    1) having multiple pages of topics (pagination)
-                    2) cases where there are no topics (display a message like we do for having no subcategories for a moderator)
-                    3) allow the user to make a new topic (add a button for this?)
+                    1) cases where there are no topics (display a message like we do for having no subcategories for a moderator)
+                    2) allow the user to make a new topic (add a button for this?)
              -->
             <section class="topics">
                 <h3 class="section-header">Topics ({{ total_results }})</h3>
+
+                {% if total_pages > 1 %}
+                    <div class="pagination">
+
+                        {% if current_page > 1 %}
+                            <a href="/categories/{{category.id}}?page=1">&lt;&lt;</a>
+                            <a class="prev-btn" href="/categories/{{ category.id }}?page={{ current_page - 1 }}">Prev</a>
+
+
+                            {% for i in range([current_page - 3, 1]|max, current_page) %}
+                                <a href="/categories/{{category.id}}?page={{ i }}">{{ i }}</a>
+                            {% endfor %}
+                        {% endif %}
+
+                        <a href="/categories/{{category.id}}?page{{ current_page }}"><strong>{{current_page}}</strong></a>
+
+
+                        {% if current_page < total_pages %}
+                            {% for i in range(current_page + 1, [current_page + 4, total_pages + 1]|min) %}
+                                <a href="/categories/{{category.id}}?page={{ i }}">{{ i }}</a>
+                            {% endfor %}
+
+                            <a class="next-btn" href="/categories/{{ category.id }}?page={{ current_page + 1 }}">Next</a>
+                            <a href="/categories/{{category.id}}?page={{ total_pages }}">&gt;&gt;</a>
+                        {% endif %}
+
+                    </div>
+                {% endif %}
 
                 {% for topic in topics %}
                     <div class="topic-row">

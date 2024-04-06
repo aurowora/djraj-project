@@ -226,3 +226,15 @@ footer {
     margin-top: 10px;
     margin-bottom: 10px;
 }
+
+.pagination {
+    text-align: center;
+}
+
+.next-btn {
+    margin-left: 5px;
+}
+
+.prev-btn {
+    margin-right: 5px;
+}
