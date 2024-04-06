@@ -38,17 +38,20 @@ class CategoryRepository:
         If the `cat_id` is None, then all root level categories are returned.
         """
 
+        where_clause = 'WHERE C.parent_cat = %s' if cat_id is not None else 'WHERE C.parent_cat IS NULL'
+        qargs = (cat_id, ) if cat_id is not None else None
+
         q = f'''
             SELECT C.id, C.cat_name, C.cat_desc, C.parent_cat, COUNT(T.threadID) AS topic_count FROM categories AS C
             LEFT OUTER JOIN threadsTable AS T ON T.parent_cat = C.id
-            WHERE C.parent_cat = %s
+            {where_clause}
             GROUP BY C.id
             ORDER BY topic_count DESC;
         '''
 
         async with self.__db.acquire() as conn:
             async with conn.cursor() as cur:
-                await cur.execute(q, (cat_id, ))
+                await cur.execute(q, qargs)
                 while row := await cur.fetchone():
                     yield _maybe_row_to_category(row[:4]), row[4]
 

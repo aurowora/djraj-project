@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from forums.routes.auth import router as auth_router
-from .login import pages_router
+from .system import pages_router
 from .topic import topic_router
 from .categories import cat_router
 

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Index - Forum</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="logo-container">
+                <img src="/static/uno-logo.png" alt="University of Nebraska Logo" class="logo">
+            </div>
+        </div>
+    </header>
+    <!-- TODO: Make this work -->
+    <!--
+    <nav>
+        <div class="container">
+            <form id="search-form">
+                <input type="text" id="search-input" placeholder="Search topics...">
+                <button type="submit">Search</button>
+            </form>
+        </div>
+    </nav>
+    -->
+    <main>
+        <div class="container">
+            <section class="cat-root">
+                    <div class="topic-header-wrapper">
+                        <h2>Forums ({{ children|length }})</h2>
+                        <a href="/new_category">New Category</a>
+                    </div>
+
+
+                    {% if children|length > 0 %}
+                        {% for (child, num_topics) in children %}
+                            <div class="topic-row">
+                                <div class="topic-title">
+                                    <a href="/categories/{{ child.id }}/">{{ child.cat_name }}</a>
+                                    <br />
+                                    {{ child.cat_desc }}
+                                </div>
+
+                                <div class="topic-info">
+                                    {% if num_topics == 1 %}
+                                        1 Topic
+                                    {% else %}
+                                        {{ num_topics }} Topics
+                                    {% endif %}
+                                </div>
+                            </div>
+
+
+                            {% if not loop.last %}
+                                <hr />
+                            {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        This site does not have any categories.
+                        {% if user.is_moderator() %}
+                             <a href="/new_category">Create one?</a>
+                        {% endif %}
+                    {% endif %}
+            </section>
+        </div>
+    </main>
+    <footer>
+        <div class="container">
+            <p>&copy; 2024 University of Nebraska Forum</p>
+        </div>
+    </footer>
+</body>
+</html>
