@@ -62,6 +62,14 @@ async def category_index(req: Request, cat_id: int, page: int = 1, user: User = 
     if cat is None:
         raise HTTPException(status_code=404, detail='No such category')
 
+    # generate the breadcrumb
+    bread = [(cat.id, cat.cat_name)]
+    j = cat
+    while (j := j.parent_cat) is not None:
+        j = await cat_repo.get_category_by_id(j)
+        bread.append((j.id, j.cat_name))
+    bread.reverse()
+
     ctx = {
         'category': cat,
         'topics': topics,
@@ -70,6 +78,7 @@ async def category_index(req: Request, cat_id: int, page: int = 1, user: User = 
         'total_pages': (total_results // TOPICS_PER_PAGE) + 1,
         'total_results': total_results,
         'user': user,
+        'bread': bread,
     }
 
     return tpl.TemplateResponse(req, name='cat_index.html', context=ctx)

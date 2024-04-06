@@ -32,6 +32,17 @@
                         2) Add some sort of breadcrumb so that we can navigate back to the parent category
             -->
             <div class="category-header">
+                <a href="/">Index</a>
+                {% for (cat_id, cat_name) in bread %}
+                    &nbsp;&gt;&nbsp;
+
+                    {% if cat_id == category.id %}
+                        <a href="/categories/{{ cat_id }}"><strong>{{cat_name}}</strong></a>
+                    {% else %}
+                        <a href="/categories/{{ cat_id }}">{{cat_name}}</a>
+                    {% endif %}
+                {% endfor %}
+
                 <h2>{{ category.cat_name }}</h2>
                 {{ category.cat_desc }}
             </div>
