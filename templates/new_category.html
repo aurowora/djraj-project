@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Category - Forum</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+{% include 'header.html' %}
+<main>
+    <div class="container">
+        <div class="new-cat-form">
+
+            {% if parent_cat %}
+                <a class="form-link" href="/categories/{{ parent_cat.id }}">Go Back</a>
+            {% else %}
+                <a class="form-link" href="/">Go Back</a>
+            {% endif %}
+
+            <h2>New Category</h2>
+
+            {% if error %}
+                <div class="banner-error mb-2">
+                    {{ error }}
+                </div>
+            {% endif %}
+
+            <form method="post" action="/categories/create">
+                <div>
+                    <label>
+                        Category Name:
+                        <input name="name" class="text-input" type="text" maxlength="64" required>
+                    </label>
+                </div>
+                <div>
+                    <label>
+                        Category Description:
+                        <textarea name="desc" style="resize: none;" class="text-input" maxlength="128" required></textarea>
+                    </label>
+                </div>
+                {% if parent_cat %}
+                The category will be created as a subcategory of {{ parent_cat.cat_name }}.
+                <input type="hidden" name="parent" value="{{ parent_cat.id }}">
+                {% else %}
+                The category will be created as a top level category.
+                {% endif %}
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                <button class="form-btn" type="submit">Create</button>
+            </form>
+        </div>
+    </div>
+</main>
+{% include 'footer.html' %}
+</body>
+</html>

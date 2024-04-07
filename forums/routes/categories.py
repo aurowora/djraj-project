@@ -13,33 +13,29 @@ from forums.routes.auth import csrf_verify
 from asyncio import gather
 from typing import Annotated
 import regex
+from urllib.parse import urlencode
+import logging
+
 
 from forums.utils import get_category_repo, get_topic_repo, async_collect, get_templates
 
 cat_router = APIRouter()
 TOPICS_PER_PAGE = 20
 
-_CATEGORY_ALLOWED_CHARS = regex.compile(r"$[\P{Cc}\P{Cn}\P{Cs}]+^")
+_CAT_BAD_CHARS = regex.compile(r"$[\P{Cc}\P{Cn}\P{Cs}]+^")
 CATEGORY_NAME_MAX_SIZE = 64
 CATEGORY_DESC_MAX_SIZE = 128
 
 
-def _assert_name_is_valid(name: str):
-    """
-    Raises an exception if the provided string is not a valid category name
-    """
-    if not (0 < len(name) <= CATEGORY_NAME_MAX_SIZE) and _CATEGORY_ALLOWED_CHARS.match(name) is not None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                            detail=f'Category name must be between 0 and {CATEGORY_NAME_MAX_SIZE} characters.')
+def _name_is_valid(name: str):
+    return (0 < len(name) <= CATEGORY_NAME_MAX_SIZE) and _CAT_BAD_CHARS.match(name) is None
 
 
-def _assert_desc_is_valid(desc: str):
+def _desc_is_valid(desc: str):
     """
     Raises an exception if the provided string is not a valid category description
     """
-    if not (0 < len(desc) <= CATEGORY_DESC_MAX_SIZE) and _CATEGORY_ALLOWED_CHARS.match(desc) is not None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f'Category description must be between 0 '
-                                                                            f'and {CATEGORY_DESC_MAX_SIZE} characters')
+    return (0 < len(desc) <= CATEGORY_DESC_MAX_SIZE) and _CAT_BAD_CHARS.match(desc) is None
 
 
 @cat_router.get('/{cat_id}')
@@ -48,7 +44,8 @@ async def category_index(req: Request, cat_id: int, page: int = 1, user: User = 
                          topic_repo: TopicRepository = Depends(get_topic_repo),
                          tpl: Jinja2Templates = Depends(get_templates)):
     if page < 1:
-        raise HTTPException(status_code=400, detail='page number must be greater than 0')
+        raise HTTPException(status_code=status.HTTP_303_SEE_OTHER,
+                            detail='page number must be greater than 0')
 
     offset = (page - 1) * TOPICS_PER_PAGE
 
@@ -90,15 +87,31 @@ async def create_category(
         name: Annotated[str, Form()], desc: Annotated[str, Form()], parent: Annotated[int | None, Form()],
         csrf_token: Annotated[str, Form()], user: User = Depends(current_user),
         cat_repo: CategoryRepository = Depends(get_category_repo)):
+    eparams = {'child_of': str(parent)} if parent is not None else {}
+
     # check privs
     if not user.is_moderator():
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='You do not have permission to do this.')
+        return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER,
+                                url=f'/new_category?%s' % urlencode({
+                                    'error': 'you do not have permission to do this',
+                                    **eparams
+                                }))
 
     csrf_verify(req, csrf_token)
 
-    # check that the name / desc has valid chars and isnt too long
-    _assert_name_is_valid(name)
-    _assert_desc_is_valid(desc)
+    # check that the name / desc has valid chars and isn't too long
+    if not _name_is_valid(name):
+        return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER,
+                                url=f'/new_category?%s' % urlencode({
+                                    'error': 'the provided category name is not valid. The category name must be less than 64 characters and contain printable characters',
+                                    **eparams
+                                }))
+    if not _desc_is_valid(name):
+        return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER,
+                                url=f'/new_category?%s' % urlencode({
+                                    'error': 'the provided category description is not valid. The category description must be less than 128 characters and contain printable characters',
+                                    **eparams
+                                }))
 
     # insert
     new_cat = Category(cat_name=name, cat_desc=desc, parent_cat=parent, id=None)
@@ -106,11 +119,19 @@ async def create_category(
     try:
         await cat_repo.put_category(new_cat)
     except IntegrityError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='The parent category is not valid.')
+        return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER,
+                                url=f'/new_category?%s' % urlencode({
+                                    'error': 'the parent category is not valid',
+                                    **eparams
+                                }))
+    except Exception as e:
+        logging.error('failed to create category', exc_info=e)
+        return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER,
+                                url=f'/new_category?%s' % urlencode({
+                                    'error': 'internal server error',
+                                    **eparams
+                                }))
 
-    # Take them to the new category page
-    if new_cat.id is None:
-        raise TypeError
     return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER, url=f'/categories/{new_cat.id}')
 
 
@@ -170,11 +191,13 @@ async def patch_category(req: Request,
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No such category exists.')
 
     if patch.set_name is not None:
-        _assert_name_is_valid(patch.set_name)
+        if not _name_is_valid(patch.set_name):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='name is not valid')
         cat.cat_name = patch.set_name
 
     if patch.set_desc is not None:
-        _assert_desc_is_valid(patch.set_desc)
+        if not _desc_is_valid(patch.set_desc):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='desc is not valid')
         cat.cat_desc = patch.set_desc
 
     if patch.set_parent is not None:

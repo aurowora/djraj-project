@@ -44,7 +44,7 @@
                 <section class="subcat">
                     <div class="topic-header-wrapper">
                         <h3 class="section-header">Subcategories ({{ children|length }})</h3>
-                        <a href="/new_category?childOf={{ category.id }}">New Subcategory</a>
+                        <a href="/new_category?child_of={{ category.id }}">New Subcategory</a>
                     </div>
 
 
@@ -73,7 +73,7 @@
 
                         {% endfor %}
                     {% else %}
-                    This category has no subcategories. <a href="/new_category?childOf={{ category.id }}">Create one?</a>
+                    This category has no subcategories. <a href="/new_category?child_of={{ category.id }}">Create one?</a>
                     {% endif %}
                 </section>
             {% endif %}
@@ -81,7 +81,7 @@
             <section class="topics">
                 <div class="topic-header-wrapper">
                     <h3 class="section-header">Topics ({{ total_results }})</h3>
-                    <a href="/new_topic?childOf={{ category.id }}">New Topic</a>
+                    <a href="/new_topic?child_of={{ category.id }}">New Topic</a>
                 </div>
 
 
@@ -141,7 +141,7 @@
                         {% endif %}
                     {% endfor %}
                 {% else %}
-                    This category has no topics. <a href="/new_topic?childOf={{ category.id }}">Create one?</a>
+                    This category has no topics. <a href="/new_topic?child_of={{ category.id }}">Create one?</a>
                 {% endif %}
             </section>
         </div>

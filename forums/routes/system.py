@@ -1,6 +1,8 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Request
+from starlette import status
+from starlette.responses import RedirectResponse
 from starlette.templating import Jinja2Templates
 
 from .auth import current_user, _assert_no_user, generate_csrf_token
@@ -34,9 +36,7 @@ def login(req: Request, error: Optional[str] = None, tpl: Jinja2Templates = Depe
     ctx = {'csrf_token': csrf_token}
 
     if error:
-        ctx["error"] = error.capitalize()
-        if __ENDSWITH_PUNCT.match(ctx["error"]) is None:
-            ctx["error"] = ctx["error"] + '.'
+        ctx["error"] = format_error(error)
 
     return tpl.TemplateResponse(request=req, name='login.html', context=ctx)
 
@@ -46,8 +46,45 @@ def register(req: Request, error: Optional[str] = None, tpl: Jinja2Templates = D
     ctx = {'csrf_token': csrf_token}
 
     if error:
-        ctx["error"] = error.capitalize()
-        if __ENDSWITH_PUNCT.match(ctx["error"]) is None:
-            ctx["error"] = ctx["error"] + '.'
+        ctx["error"] = format_error(error)
 
     return tpl.TemplateResponse(request=req, name='register.html', context=ctx)
+
+
+@pages_router.get('/new_category')
+async def new_category_form(
+        req: Request,
+        error: Optional[str] = None,
+        child_of: Optional[int] = None,
+        csrf_token: str = Depends(generate_csrf_token),
+        tpl: Jinja2Templates = Depends(get_templates),
+        user: User = Depends(current_user),
+        cat_repo: CategoryRepository = Depends(get_category_repo)
+):
+    if not user.is_moderator():
+        return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER, url='/')
+
+    parent_cat = await cat_repo.get_category_by_id(child_of) if child_of else None
+
+    ctx = {
+        'csrf_token': csrf_token,
+    }
+
+    if parent_cat:
+        ctx['parent_cat'] = parent_cat
+
+    if error:
+        ctx["error"] = format_error(error)
+
+    return tpl.TemplateResponse(request=req, name='new_category.html', context=ctx)
+
+
+def format_error(err: str):
+    """
+    Add a period and capitalizes the error.
+    """
+    err = err.capitalize()
+    if __ENDSWITH_PUNCT.match(err) is None:
+        err = err + '.'
+
+    return err
