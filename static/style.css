@@ -27,9 +27,12 @@ body > main {
 header {
     background-color: #007bff;
     color: #fff;
-    padding: 20px 0;
-    text-align: center;
+    padding: 10px 0;
+    text-align: left;
     position: relative; /* Position relative for logo positioning */
+    height: 48px;
+    display: flex;
+    justify-content: space-between;
 }
 
 header h1 {
@@ -38,14 +41,12 @@ header h1 {
 
 /* Logo styles */
 .logo-container {
-    position: absolute;
-    top: 20px;
-    right: 20px;
 }
 
 .logo {
-    width: 100px; /* Adjust as needed */
-    height: auto;
+    width: auto;
+    height: 100%;
+    margin-left: 1em;
 }
 
 /* Button styles */
@@ -282,4 +283,34 @@ footer {
 
 .form-btn {
     margin-top: 1em;
+}
+
+.search-wrap {
+    display: flex;
+    align-items: center;
+    width: 30vw;
+    min-width: 200px;
+
+}
+
+#search-input {
+    margin-bottom: 0 !important;
+}
+
+#search-form {
+    width: 100%;
+}
+
+.user-nav span, .user-nav a {
+    vertical-align: middle;
+    line-height: 48px;
+    color: white;
+}
+
+.user-nav a:visited {
+    color: white;
+}
+
+.user-nav {
+    margin-right: 1em;
 }

@@ -1,7 +1,17 @@
 <header>
-        <div class="container">
-            <div class="logo-container">
-                <img src="/static/uno-logo.png" alt="University of Nebraska Logo" class="logo">
-            </div>
+        <img src="/static/uno-logo.png" alt="University of Nebraska Logo" class="logo">
+
+        <div class="search-wrap">
+            {% if user %}
+            <form id="search-form">
+                <input type="text" id="search-input" class="text-input" placeholder="Search topics...">
+            </form>
+            {% endif %}
         </div>
+
+        {% if user %}
+        <div class="user-nav">
+            <span>{{ user.display_name }} (<a href="/auth/logout">Logout?</a>)</span>
+        </div>
+        {% endif %}
 </header>

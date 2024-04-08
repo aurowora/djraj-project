@@ -68,6 +68,7 @@ async def new_category_form(
 
     ctx = {
         'csrf_token': csrf_token,
+        'user': user,
     }
 
     if parent_cat:
@@ -86,14 +87,16 @@ async def new_topic_form(
         error: Optional[str] = None,
         csrf_token: str = Depends(generate_csrf_token),
         tpl: Jinja2Templates = Depends(get_templates),
-        cat_repo: CategoryRepository = Depends(get_category_repo)
+        cat_repo: CategoryRepository = Depends(get_category_repo),
+        user: User = Depends(current_user)
 ):
     if (parent_cat := await cat_repo.get_category_by_id(child_of)) is None:
         return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER, url='/')
 
     ctx = {
         'csrf_token': csrf_token,
-        'parent_cat': parent_cat
+        'parent_cat': parent_cat,
+        'user': user,
     }
 
     if error:
