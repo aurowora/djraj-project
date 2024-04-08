@@ -3,8 +3,8 @@
 
         <div class="search-wrap">
             {% if user %}
-            <form id="search-form">
-                <input type="text" id="search-input" class="text-input" placeholder="Search topics...">
+            <form id="search-form" method="get" action="/search">
+                <input name="q" type="text" id="search-input" class="text-input" placeholder="Search" aria-label="Search">
             </form>
             {% endif %}
         </div>
