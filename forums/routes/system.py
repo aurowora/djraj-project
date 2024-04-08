@@ -18,7 +18,7 @@ pages_router = APIRouter()
 async def index(req: Request, user: User = Depends(current_user),
                          cat_repo: CategoryRepository = Depends(get_category_repo),
                          tpl: Jinja2Templates = Depends(get_templates)):
-    subcat = await async_collect(cat_repo.get_subcategories_of_category(None))
+    subcat = await async_collect(cat_repo.get_subcategories_of_category(None, include_hidden_in_cnt=user.is_moderator()))
 
     ctx = {
         'children': subcat,

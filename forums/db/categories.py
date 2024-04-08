@@ -3,6 +3,8 @@ from typing import Optional, AsyncGenerator, Tuple
 from pydantic import BaseModel
 from aiomysql import Pool
 
+from forums.db.topics import TOPIC_IS_HIDDEN
+
 
 class Category(BaseModel):
     id: Optional[int]
@@ -32,13 +34,15 @@ class CategoryRepository:
                 await cur.execute(f"SELECT {_ROW_SPEC} FROM categories WHERE id = %s;", (cat_id, ))
                 return _maybe_row_to_category(await cur.fetchone())
 
-    async def get_subcategories_of_category(self, cat_id: Optional[int]) -> AsyncGenerator[Tuple[Category, int], None]:
+    async def get_subcategories_of_category(self, cat_id: Optional[int], include_hidden_in_cnt=True) -> AsyncGenerator[Tuple[Category, int], None]:
         """
         Returns a stream of (category, num_topics) objects that are children of the category given in `cat_id`.
         If the `cat_id` is None, then all root level categories are returned.
         """
 
         where_clause = 'WHERE C.parent_cat = %s' if cat_id is not None else 'WHERE C.parent_cat IS NULL'
+        if not include_hidden_in_cnt:
+            where_clause += f' AND (T.flags & {TOPIC_IS_HIDDEN}) = 0'
         qargs = (cat_id, ) if cat_id is not None else None
 
         q = f'''

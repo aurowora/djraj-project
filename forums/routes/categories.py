@@ -54,7 +54,7 @@ async def category_index(req: Request, cat_id: int, page: int = 1, user: User = 
                                                                                                include_hidden=user.is_moderator(),
                                                                                                limit=TOPICS_PER_PAGE,
                                                                                                skip=offset),
-                                                        async_collect(cat_repo.get_subcategories_of_category(cat_id)))
+                                                        async_collect(cat_repo.get_subcategories_of_category(cat_id, include_hidden_in_cnt=user.is_moderator())))
 
     if cat is None:
         raise HTTPException(status_code=404, detail='No such category')
