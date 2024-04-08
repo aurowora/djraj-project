@@ -61,6 +61,9 @@ class TopicWithAuthor(BaseModel):
         return Topic(topic_id=self.topic_id, parent_cat=self.parent_cat, author_id=self.author.user_id,
                      title=self.title, content=self.content, created_at=self.created_at, flags=self.flags)
 
+    def is_hidden(self):
+        return self.flags & TOPIC_IS_HIDDEN == TOPIC_IS_HIDDEN
+
 
 _JOIN_ROW = Tuple[int, int, int, str, str, str, int, int, str, str, int, int, datetime]
 
