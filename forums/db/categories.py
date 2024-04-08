@@ -46,7 +46,7 @@ class CategoryRepository:
             LEFT OUTER JOIN threadsTable AS T ON T.parent_cat = C.id
             {where_clause}
             GROUP BY C.id
-            ORDER BY topic_count DESC;
+            ORDER BY topic_count DESC, C.id ASC;
         '''
 
         async with self.__db.acquire() as conn:
