@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional, AsyncGenerator, Tuple
 
 from aiomysql import Pool
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from forums.db.posts import PostRepository
 from forums.db.utils import mysql_date_to_python, mysql_escape_like
@@ -27,7 +27,7 @@ class Topic(BaseModel):
     author_id: int
     title: str
     content: str
-    created_at: Optional[datetime]
+    created_at: Optional[datetime] = None
     flags: int = 0
 
 

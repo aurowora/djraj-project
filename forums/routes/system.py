@@ -79,6 +79,29 @@ async def new_category_form(
     return tpl.TemplateResponse(request=req, name='new_category.html', context=ctx)
 
 
+@pages_router.get('/new_topic')
+async def new_topic_form(
+        req: Request,
+        child_of: int,
+        error: Optional[str] = None,
+        csrf_token: str = Depends(generate_csrf_token),
+        tpl: Jinja2Templates = Depends(get_templates),
+        cat_repo: CategoryRepository = Depends(get_category_repo)
+):
+    if (parent_cat := await cat_repo.get_category_by_id(child_of)) is None:
+        return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER, url='/')
+
+    ctx = {
+        'csrf_token': csrf_token,
+        'parent_cat': parent_cat
+    }
+
+    if error:
+        ctx["error"] = format_error(error)
+
+    return tpl.TemplateResponse(request=req, name='new_topic.html', context=ctx)
+
+
 def format_error(err: str):
     """
     Add a period and capitalizes the error.

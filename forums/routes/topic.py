@@ -1,3 +1,5 @@
+from urllib.parse import urlencode
+
 from fastapi import Form, APIRouter, Depends, HTTPException, Request
 from typing import Annotated, Optional
 
@@ -32,37 +34,62 @@ async def create_topic(req: Request,
                        csrf_token: Annotated[str, Form()],
                        user: User = Depends(current_user),
                        topic_repo: TopicRepository = Depends(get_topic_repo)):
+    eparams = {'child_of': str(category)}
+
     if user.flags & IS_USER_RESTRICTED == IS_USER_RESTRICTED:
-        raise HTTPException(status_code=403, detail='Restricted users may not post new content items.')
+        return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER,
+                                url=f'/new_topic?%s' % urlencode({
+                                    'error': 'you do not have permission to post topics',
+                                    **eparams
+                                }))
 
     if not (0 < len(title) <= MAX_TOPIC_TITLE_LEN):
-        raise HTTPException(status_code=400, detail=f'Title must be between 1 and {MAX_TOPIC_TITLE_LEN} characters.')
+        return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER,
+                                url=f'/new_topic?%s' % urlencode({
+                                    'error': f'title must be between 1 and {MAX_TOPIC_TITLE_LEN} characters',
+                                    **eparams
+                                }))
 
     if not (0 < len(content) <= MAX_TOPIC_CONTENT_LEN):
-        raise HTTPException(status_code=400,
-                            detail=f'Post content must be between 1 and {MAX_TOPIC_CONTENT_LEN} characters.')
+        return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER,
+                                url=f'/new_topic?%s' % urlencode({
+                                    'error': f'post content must be between 1 and {MAX_TOPIC_CONTENT_LEN} characters',
+                                    **eparams
+                                }))
 
     if category < 0 and create_flags < 0:
-        raise HTTPException(status_code=400, detail='Category and create_flags must be positive integers.')
+        return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER,
+                                url=f'/new_topic?%s' % urlencode({
+                                    'error': f'category and create_flags must be positive integers',
+                                    **eparams
+                                }))
 
     csrf_verify(req, csrf_token)
 
     # only moderators may set create flags
     create_flags = 0
     if user.is_moderator():
-        create_flags = create_topic.create_flags & TOPIC_ALL_FLAGS
+        create_flags = create_flags & TOPIC_ALL_FLAGS
 
     # Validate title and content fields
-    if __TOPIC_ALLOW_MOST_CHARS.match(title) is None or __TOPIC_ALLOW_MOST_CHARS.match(content) is None:
-        raise HTTPException(status_code=400, detail='Title or content contains illegal characters')
+    if __TOPIC_ALLOW_MOST_CHARS.match(title) is not None or __TOPIC_ALLOW_MOST_CHARS.match(content) is not None:
+        return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER,
+                                url=f'/new_topic?%s' % urlencode({
+                                    'error': f'title or content contains illegal characters',
+                                    **eparams
+                                }))
 
     topic = Topic(topic_id=None, parent_cat=category, title=title,
-                  content=content, flags=create_flags, author=user.user_id)
+                  content=content, flags=create_flags, author_id=user.user_id)
 
     try:
         await topic_repo.put_topic(topic)
     except IntegrityError:
-        raise HTTPException(status_code=400, detail='Target category is not valid.')
+        return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER,
+                                url=f'/new_topic?%s' % urlencode({
+                                    'error': f'target category is not valid',
+                                    **eparams
+                                }))
 
     # Send the user to the topic they just created
     return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER, url=f'/topic/{topic.topic_id}',
