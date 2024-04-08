@@ -24,7 +24,9 @@
             <section class="cat-root">
                     <div class="topic-header-wrapper">
                         <h2>Forums ({{ children|length }})</h2>
+                        {% if user.is_moderator() %}
                         <a href="/new_category">New Category</a>
+                        {% endif %}
                     </div>
 
 

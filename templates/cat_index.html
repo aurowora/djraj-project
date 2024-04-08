@@ -44,7 +44,10 @@
                 <section class="subcat">
                     <div class="topic-header-wrapper">
                         <h3 class="section-header">Subcategories ({{ children|length }})</h3>
+
+                        {% if user.is_moderator() %}
                         <a href="/new_category?child_of={{ category.id }}">New Subcategory</a>
+                        {% endif %}
                     </div>
 
 
