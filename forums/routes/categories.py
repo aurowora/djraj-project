@@ -45,7 +45,7 @@ async def category_index(req: Request, cat_id: int, page: int = 1, user: User = 
                          tpl: Jinja2Templates = Depends(get_templates)):
     if page < 1:
         raise HTTPException(status_code=status.HTTP_303_SEE_OTHER,
-                            detail='page number must be greater than 0')
+                            detail='page number must be greater than 0', headers={'Location': '/'})
 
     offset = (page - 1) * TOPICS_PER_PAGE
 

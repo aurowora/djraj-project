@@ -1,14 +1,17 @@
 from typing import Optional
+from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, HTTPException
 from starlette import status
 from starlette.responses import RedirectResponse
 from starlette.templating import Jinja2Templates
 
 from .auth import current_user, _assert_no_user, generate_csrf_token
+from .categories import TOPICS_PER_PAGE
 from ..db.categories import CategoryRepository
+from ..db.topics import TopicRepository
 from ..db.users import User
-from forums.utils import get_templates, get_category_repo, async_collect
+from forums.utils import get_templates, get_category_repo, async_collect, get_topic_repo
 import re
 
 pages_router = APIRouter()
@@ -103,6 +106,36 @@ async def new_topic_form(
         ctx["error"] = format_error(error)
 
     return tpl.TemplateResponse(request=req, name='new_topic.html', context=ctx)
+
+
+@pages_router.get('/search')
+async def search(
+        req: Request,
+        q: str,
+        page: int = 1,
+        tpl: Jinja2Templates = Depends(get_templates),
+        topic_repo: TopicRepository = Depends(get_topic_repo),
+        user: User = Depends(current_user)
+):
+    if page < 1:
+        raise HTTPException(status_code=status.HTTP_303_SEE_OTHER, detail='page number must be greater than 0',
+                            headers={'Location': '/'})
+
+    offset = (page - 1) * TOPICS_PER_PAGE
+
+    (count, results) = await topic_repo.generate_search_result_data(q, limit=TOPICS_PER_PAGE, skip=offset, include_hidden=user.is_moderator())
+
+    ctx = {
+        'user': user,
+        'current_page': page,
+        'total_pages': (count // TOPICS_PER_PAGE) + 1,
+        'total_results': count,
+        'query': q,
+        'base_url': '/search?%s' % urlencode({'q': q}),
+        'results': results
+    }
+
+    return tpl.TemplateResponse(req, name='search.html', context=ctx)
 
 
 def format_error(err: str):
