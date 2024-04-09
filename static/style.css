@@ -338,3 +338,7 @@ footer {
 .post-header > span {
     font-size: 1em;
 }
+
+.topic-bread {
+    margin-bottom: 5px;
+}

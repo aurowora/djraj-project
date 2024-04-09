@@ -10,6 +10,18 @@
     {% include 'header.html' %}
     <main>
         <div class="container">
+
+            <div class="topic-bread">
+                <a href="/">Index</a>
+                {% for (cat_id, cat_name) in bread %}
+                        &nbsp;&gt;&nbsp;
+
+                        <a href="/categories/{{ cat_id }}">{{cat_name}}</a>
+                {% endfor %}
+                &nbsp;&gt;&nbsp;
+                <a href="/topic/{{ topic.topic_id }}"><strong>{{ topic.title }}</strong></a>
+            </div>
+
             <section class="topic-main">
                 <div class="topic-header">
                     <h3>{{ topic.title }}</h3>

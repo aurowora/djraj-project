@@ -140,6 +140,14 @@ async def get_topic(req: Request,
     # load posts
     (count, posts) = await posts_repo.get_posts_of_topic(topic_id, limit=REPLIES_PER_PAGE, skip=offset, include_hidden=user.is_moderator())
 
+    # generate the breadcrumb
+    bread = [(category.id, category.cat_name)]
+    j = category
+    while (j := j.parent_cat) is not None:
+        j = await cat_repo.get_category_by_id(j)
+        bread.append((j.id, j.cat_name))
+    bread.reverse()
+
     ctx = {
         'user': user,
         'author': author,
@@ -151,6 +159,7 @@ async def get_topic(req: Request,
         'total_results': count,
         'base_url': f'/topic/{topic.topic_id}/',
         'csrf_token': csrf_token,
+        'bread': bread,
     }
 
     return tpl.TemplateResponse(request=req, name='topic.html', context=ctx)
