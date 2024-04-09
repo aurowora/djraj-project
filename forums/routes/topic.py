@@ -82,8 +82,8 @@ async def create_topic(req: Request,
                                     **eparams
                                 }))
 
-    topic = Topic(topic_id=None, parent_cat=category, title=title,
-                  content=content, flags=create_flags, author_id=user.user_id)
+    topic = Topic(topic_id=None, parent_cat=category, title=title.strip(),
+                  content=content.strip(), flags=create_flags, author_id=user.user_id)
 
     try:
         await topic_repo.put_topic(topic)
@@ -316,7 +316,7 @@ async def reply_to_topic(req: Request, topic_id: int, content: Annotated[str, Fo
     post = Post(post_id=None,
                 topic_id=topic_id,
                 author_id=user.user_id,
-                content=content,
+                content=content.strip(),
                 created_at=None,
                 flags=0)
 
