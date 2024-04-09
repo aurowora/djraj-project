@@ -342,3 +342,7 @@ footer {
 .topic-bread {
     margin-bottom: 5px;
 }
+
+pre {
+    white-space: pre-wrap;
+}
