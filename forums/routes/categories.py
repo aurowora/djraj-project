@@ -84,8 +84,8 @@ async def category_index(req: Request, cat_id: int, page: int = 1, user: User = 
 @cat_router.post('/create')
 async def create_category(
         req: Request,
-        name: Annotated[str, Form()], desc: Annotated[str, Form()], parent: Annotated[int | None, Form()] = None,
-        csrf_token: Annotated[str, Form()], user: User = Depends(current_user),
+        name: Annotated[str, Form()], desc: Annotated[str, Form()], csrf_token: Annotated[str, Form()],
+        parent: Annotated[int | None, Form()] = None, user: User = Depends(current_user),
         cat_repo: CategoryRepository = Depends(get_category_repo)):
     eparams = {'child_of': str(parent)} if parent is not None else {}
 
