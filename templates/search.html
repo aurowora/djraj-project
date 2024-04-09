@@ -21,7 +21,7 @@
 
                         {% if current_page > 1 %}
                             <a href="{{ base_url }}&page=1">&lt;&lt;</a>
-                            <a class="prev-btn" href="{{ base_url }}&?page={{ current_page - 1 }}">Prev</a>
+                            <a class="prev-btn" href="{{ base_url }}&page={{ current_page - 1 }}">Prev</a>
 
 
                             {% for i in range([current_page - 3, 1]|max, current_page) %}

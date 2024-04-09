@@ -7,15 +7,17 @@ from pydantic import BaseModel, Field
 from pymysql import IntegrityError
 from starlette import status
 from starlette.responses import RedirectResponse, Response
+from starlette.templating import Jinja2Templates
 
+from forums.db.categories import CategoryRepository
 from forums.db.posts import PostRepository, Post, POST_IS_HIDDEN
 from forums.db.topics import TOPIC_ALL_FLAGS, Topic, TopicRepository, TOPIC_IS_HIDDEN, TOPIC_IS_PINNED
 from forums.db.users import User, IS_USER_RESTRICTED, IS_USER_MODERATOR, UserRepository, get_user_repo
 from forums.models import UserAPI
-from forums.routes.auth import current_user, csrf_verify
+from forums.routes.auth import current_user, csrf_verify, generate_csrf_token
 import regex  # use instead of re for more advanced regex support
 
-from forums.utils import get_topic_repo, get_post_repo
+from forums.utils import get_topic_repo, get_post_repo, get_category_repo, get_templates
 
 topic_router = APIRouter()
 
@@ -25,6 +27,7 @@ __TOPIC_ALLOW_MOST_CHARS = regex.compile(r"$[\P{Cc}\P{Cn}\P{Cs}]+^")
 MAX_TOPIC_CONTENT_LEN = 4000
 # This can be no more than 100 characters
 MAX_TOPIC_TITLE_LEN = 100
+REPLIES_PER_PAGE = 20
 
 
 @topic_router.post('/')
@@ -97,10 +100,19 @@ async def create_topic(req: Request,
 
 
 @topic_router.get('/{topic_id}')
-async def get_topic(topic_id: int,
+async def get_topic(req: Request,
+                    topic_id: int,
+                    page: int = 1,
                     topic_repo: TopicRepository = Depends(get_topic_repo),
                     user_repo: UserRepository = Depends(get_user_repo),
-                    user: User = Depends(current_user)):
+                    cat_repo: CategoryRepository = Depends(get_category_repo),
+                    posts_repo: PostRepository = Depends(get_post_repo),
+                    user: User = Depends(current_user),
+                    tpl: Jinja2Templates = Depends(get_templates),
+                    csrf_token: str = Depends(generate_csrf_token)):
+    if page < 1:
+        raise HTTPException(status_code=400, detail='page must be greater than 0')
+
     # load the topic
     if topic_id < 0:
         raise HTTPException(status_code=403, detail='Invalid topic id')
@@ -110,6 +122,8 @@ async def get_topic(topic_id: int,
     if not topic:
         raise HTTPException(status_code=404, detail='No such topic')
 
+    offset = (page - 1) * REPLIES_PER_PAGE
+
     # load user obj for author
     author = await user_repo.get_user_by_id(topic.author_id)
     if not author:
@@ -118,8 +132,28 @@ async def get_topic(topic_id: int,
     else:
         author = UserAPI.from_user(author)
 
-    # placeholder until template
-    return f'Title: {topic.title}\nAuthor: {author.display_name}\nDate: {topic.created_at}\nContent: {topic.content}'
+    # load category obj
+    category = await cat_repo.get_category_by_id(topic.parent_cat)
+    if not category:
+        raise HTTPException(status_code=404, detail='Category referenced by topic does not exist')
+
+    # load posts
+    (count, posts) = await posts_repo.get_posts_of_topic(topic_id, limit=REPLIES_PER_PAGE, skip=offset, include_hidden=user.is_moderator())
+
+    ctx = {
+        'user': user,
+        'author': author,
+        'topic': topic,
+        'category': category,
+        'posts': posts,
+        'current_page': page,
+        'total_pages': (count // REPLIES_PER_PAGE) + 1,
+        'total_results': count,
+        'base_url': f'/topic/{topic.topic_id}/',
+        'csrf_token': csrf_token,
+    }
+
+    return tpl.TemplateResponse(request=req, name='topic.html', context=ctx)
 
 
 @topic_router.delete('/{topic_id}')
@@ -212,7 +246,7 @@ async def update_topic(req: Request, patch_spec: TopicPatchSpec, topic_id: int,
             raise HTTPException(status_code=400, detail=f'Content must be between 0 and {MAX_TOPIC_CONTENT_LEN}.')
 
         # validate that it only contains legal characters
-        if not __TOPIC_ALLOW_MOST_CHARS.match(patch_spec.set_content):
+        if __TOPIC_ALLOW_MOST_CHARS.match(patch_spec.set_content):
             raise HTTPException(status_code=400, detail='Invalid content.')
         topic.content = patch_spec.set_content
         dirty = True
@@ -222,7 +256,7 @@ async def update_topic(req: Request, patch_spec: TopicPatchSpec, topic_id: int,
         if not (0 < len(patch_spec.set_title) <= MAX_TOPIC_TITLE_LEN):
             raise HTTPException(status_code=400, detail=f'Title must be between 0 and {MAX_TOPIC_TITLE_LEN}.')
 
-        if not __TOPIC_ALLOW_MOST_CHARS.match(patch_spec.set_title):
+        if __TOPIC_ALLOW_MOST_CHARS.match(patch_spec.set_title):
             raise HTTPException(status_code=400, detail='Invalid title.')
         topic.title = patch_spec.set_title
         dirty = True
@@ -265,7 +299,7 @@ async def reply_to_topic(req: Request, topic_id: int, content: Annotated[str, Fo
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='You do not have permission to do this.')
 
     # check topic contents
-    if __TOPIC_ALLOW_MOST_CHARS.match(content) is None or not (0 < len(content) <= MAX_TOPIC_CONTENT_LEN):
+    if __TOPIC_ALLOW_MOST_CHARS.match(content) is not None or not (0 < len(content) <= MAX_TOPIC_CONTENT_LEN):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail='Post content is too long or contains illegal characters.')
 
@@ -316,7 +350,7 @@ async def edit_post(req: Request, topic_id: int, post_id: int, patch_spec: PostP
     dirty = False
 
     if patch_spec.set_content is not None:
-        if __TOPIC_ALLOW_MOST_CHARS.match(patch_spec.set_content) is None or not (
+        if __TOPIC_ALLOW_MOST_CHARS.match(patch_spec.set_content) is not None or not (
                 0 < len(patch_spec.set_content) <= MAX_TOPIC_CONTENT_LEN):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                 detail='Post content is too long or contains illegal characters.')

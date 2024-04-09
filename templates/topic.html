@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ topic.title }} - Forum</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    {% include 'header.html' %}
+    <main>
+        <div class="container">
+            <section class="topic-main">
+                <div class="topic-header">
+                    <h3>{{ topic.title }}</h3>
+                    Topic started by <a href="/users/{{ author.user_id }}">{{ author.display_name }}</a> on {{ topic.created_at }} in {{ category.cat_name }}
+                </div>
+
+                <hr />
+
+                <div class="topic-content">
+                    {{ topic.content }}
+                </div>
+
+                <div class="topic-actions">
+                    <!--TODO-->
+                </div>
+            </section>
+
+            <!--<h4>Replies ({{ total_results }})</h4>-->
+
+            <section class="posts">
+                {% for post in posts %}
+                    <div class="post-main">
+                        <div class="post-header">
+                            <span> <a href="/users/{{ post.author.user_id }}">{{ post.author.display_name }}</a> replied to <strong>{{ topic.title }}</strong> on {{ post.created_at }}</span>
+                        </div>
+
+                        <hr />
+
+                        <div class="post-content">
+                            {{ post.content }}
+                        </div>
+
+                        <div class="post-actions">
+                            <!-- TODO -->
+                        </div>
+                    </div>
+                {% endfor %}
+            </section>
+
+            {% if total_pages > 1 %}
+                    <div class="pagination">
+
+                        {% if current_page > 1 %}
+                            <a href="{{ base_url }}?page=1">&lt;&lt;</a>
+                            <a class="prev-btn" href="{{ base_url }}?page={{ current_page - 1 }}">Prev</a>
+
+
+                            {% for i in range([current_page - 3, 1]|max, current_page) %}
+                                <a href="{{ base_url }}?page={{ i }}">{{ i }}</a>
+                            {% endfor %}
+                        {% endif %}
+
+                        <a href="{{ base_url }}?page{{ current_page }}"><strong>{{current_page}}</strong></a>
+
+
+                        {% if current_page < total_pages %}
+                            {% for i in range(current_page + 1, [current_page + 4, total_pages + 1]|min) %}
+                                <a href="{{ base_url }}?page={{ i }}">{{ i }}</a>
+                            {% endfor %}
+
+                            <a class="next-btn" href="{{ base_url }}?page={{ current_page + 1 }}">Next</a>
+                            <a href="{{ base_url }}?page={{ total_pages }}">&gt;&gt;</a>
+                        {% endif %}
+                    </div>
+            {% endif %}
+
+            <section class="retort">
+
+                <form method="post" action="/topic/{{ topic.topic_id }}/reply">
+                    <label>
+                        Reply to <strong>{{ topic.title }}</strong>:
+                        <textarea name="content" rows="8" style="resize: vertical" class="text-input"></textarea>
+                    </label>
+                    <input type="hidden" name="csrf_token" value="{{csrf_token}}">
+                    <button type="submit">Submit</button>
+                </form>
+            </section>
+        </div>
+    </main>
+    {% include 'footer.html' %}
+</body>
+</html>

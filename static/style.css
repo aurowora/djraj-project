@@ -314,3 +314,27 @@ footer {
 .user-nav {
     margin-right: 1em;
 }
+
+.topic-main {
+    border-width: 2px;
+    border-color: black;
+    border-style: solid;
+    padding: 5px;
+    margin-bottom: 2em;
+}
+
+.topic-header > h3 {
+    margin: 0;
+}
+
+.post-main {
+    border-width: 1px;
+    border-color: black;
+    border-style: solid;
+    padding: 5px;
+    margin-bottom: 0.5em;
+}
+
+.post-header > span {
+    font-size: 1em;
+}
