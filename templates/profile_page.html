@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile Page</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    {% include 'header.html' %}
+
+        <main>
+            <div class="container">
+                <section id="profile">
+                    <h2>{{ user.name }}'s Profile</h2>
+                    ProfilePicture here <br>
+                    Member since: <br>
+                    Number of threads created: <br>
+                    
+                    {% if error %}
+                    <div class="banner-error">
+                        {{ error }}
+                    </div>
+                    {% endif %}
+                </section>
+            </div>
+        </main>
+
+    {% include 'footer.html' %}
+</body>
+</html>
