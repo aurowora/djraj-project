@@ -172,7 +172,7 @@ async def delete_topic(req: Request, topic_id: int, csrf_token: str, user: User 
     csrf_verify(req, csrf_token)
 
     # load topic
-    topic = await topic_repo.get_topic_by_id(topic_id)
+    topic = await topic_repo.get_topic_by_id(topic_id, include_hidden=user.is_moderator())
     if not topic:
         raise HTTPException(status_code=404, detail='No such topic')
 
@@ -218,7 +218,7 @@ async def update_topic(req: Request, patch_spec: TopicPatchSpec, topic_id: int,
     csrf_verify(req, patch_spec.csrf_token)
 
     # load topic
-    topic = await topic_repo.get_topic_by_id(topic_id)
+    topic = await topic_repo.get_topic_by_id(topic_id, include_hidden=user.is_moderator())
     if topic is None:
         raise HTTPException(status_code=404, detail='No such topic.')
 
@@ -314,7 +314,7 @@ async def reply_to_topic(req: Request, topic_id: int, content: Annotated[str, Fo
     csrf_verify(req, csrf_token)
 
     # get topic
-    topic = await topic_repo.get_topic_by_id(topic_id)
+    topic = await topic_repo.get_topic_by_id(topic_id, include_hidden=user.is_moderator())
     if not topic:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='There is no such topic.')
 
@@ -358,7 +358,7 @@ async def edit_post(req: Request, topic_id: int, post_id: int, patch_spec: PostP
     csrf_verify(req, patch_spec.csrf_token)
 
     # load the topic and post
-    topic = await topic_repo.get_topic_by_id(topic_id)
+    topic = await topic_repo.get_topic_by_id(topic_id, include_hidden=user.is_moderator())
     post = await post_repo.get_post_by_id(post_id)
     if not topic or not post:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Could not locate topic/post.')
