@@ -6,6 +6,9 @@
                                     {% if topic.is_hidden() %}
                                         <span style="color:red">(HIDDEN)</span>
                                     {% endif %}
+                                    {% if topic.is_locked() %}
+                                        <span style="color:red">(LOCKED)</span>
+                                    {% endif %}
                                 </span>
             <br/>
             Posted by <a href="/users/{{ topic.author.user_id }}">{{ topic.author.display_name }}</a>

@@ -11,7 +11,8 @@ from forums.models import UserAPI
 # Bitflags for Topic
 TOPIC_IS_HIDDEN = 1 << 0
 TOPIC_IS_PINNED = 1 << 1
-TOPIC_ALL_FLAGS = TOPIC_IS_HIDDEN | TOPIC_IS_PINNED
+TOPIC_IS_LOCKED = 1 << 2
+TOPIC_ALL_FLAGS = TOPIC_IS_HIDDEN | TOPIC_IS_PINNED | TOPIC_IS_LOCKED
 
 
 class Topic(BaseModel):
@@ -64,6 +65,9 @@ class TopicWithAuthor(BaseModel):
 
     def is_hidden(self):
         return self.flags & TOPIC_IS_HIDDEN == TOPIC_IS_HIDDEN
+
+    def is_locked(self):
+        return self.flags & TOPIC_IS_LOCKED == TOPIC_IS_LOCKED
 
 
 _JOIN_ROW = Tuple[int, int, int, str, str, str, int, int, str, str, int, int, datetime, str]
