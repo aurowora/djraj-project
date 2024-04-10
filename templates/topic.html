@@ -99,7 +99,7 @@
             {% endif %}
 
             <section class="retort">
-                {% if user.is_moderator() or not topic.is_locked() %}
+                {% if user.is_moderator() or not (topic.is_locked() or user.is_restricted()) %}
 
 
                         <form method="post" action="/topic/{{ topic.topic_id }}/reply">
