@@ -31,6 +31,12 @@ class Topic(BaseModel):
     created_at: Optional[datetime] = None
     flags: int = 0
 
+    def is_locked(self):
+        return self.flags & TOPIC_IS_LOCKED == TOPIC_IS_LOCKED
+
+    def is_hidden(self):
+        return self.flags & TOPIC_IS_HIDDEN == TOPIC_IS_HIDDEN
+
 
 _ROW_SPEC = 'threadID, parent_cat, userID, title, content, createdAt, flags'
 _ROW = Tuple[int, int, int, str, str, str, int]

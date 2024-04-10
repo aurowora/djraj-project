@@ -24,7 +24,17 @@
 
             <section class="topic-main">
                 <div class="topic-header">
-                    <h3>{{ topic.title }}</h3>
+                    <h3>
+                        {{ topic.title }}
+
+                        {% if topic.is_hidden() %}
+                            <span style="color:red">(HIDDEN)</span>
+                        {% endif %}
+
+                        {% if topic.is_locked() %}
+                            <span style="color:red">(LOCKED)</span>
+                        {% endif %}
+                    </h3>
                     Topic started by <a href="/users/{{ author.user_id }}">{{ author.display_name }}</a> on {{ topic.created_at }} in {{ category.cat_name }}
                 </div>
 
@@ -89,15 +99,21 @@
             {% endif %}
 
             <section class="retort">
+                {% if user.is_moderator() or not topic.is_locked() %}
 
-                <form method="post" action="/topic/{{ topic.topic_id }}/reply">
-                    <label>
-                        Reply to <strong>{{ topic.title }}</strong>:
-                        <textarea name="content" rows="8" style="resize: vertical" class="text-input"></textarea>
-                    </label>
-                    <input type="hidden" name="csrf_token" value="{{csrf_token}}">
-                    <button type="submit">Submit</button>
-                </form>
+
+                        <form method="post" action="/topic/{{ topic.topic_id }}/reply">
+                            <label>
+                                Reply to <strong>{{ topic.title }}</strong>:
+                                <textarea name="content" rows="8" style="resize: vertical" class="text-input"></textarea>
+                            </label>
+                            <input type="hidden" name="csrf_token" value="{{csrf_token}}">
+                            <button type="submit">Submit</button>
+                        </form>
+
+                {% else %}
+                    Replying to this topic has been disabled by a moderator.
+                {% endif %}
             </section>
         </div>
     </main>
