@@ -11,7 +11,7 @@ from starlette.templating import Jinja2Templates
 
 from forums.db.categories import CategoryRepository
 from forums.db.posts import PostRepository, Post, POST_IS_HIDDEN
-from forums.db.topics import TOPIC_ALL_FLAGS, Topic, TopicRepository, TOPIC_IS_HIDDEN, TOPIC_IS_PINNED
+from forums.db.topics import TOPIC_ALL_FLAGS, Topic, TopicRepository, TOPIC_IS_HIDDEN, TOPIC_IS_PINNED, TOPIC_IS_LOCKED
 from forums.db.users import User, IS_USER_RESTRICTED, IS_USER_MODERATOR, UserRepository, get_user_repo
 from forums.models import UserAPI
 from forums.routes.auth import current_user, csrf_verify, generate_csrf_token
@@ -223,6 +223,10 @@ async def update_topic(req: Request, patch_spec: TopicPatchSpec, topic_id: int,
     if (not user.is_moderator() and user.user_id != topic.author_id) or user.is_restricted():
         raise HTTPException(status_code=403, detail='You do not have permission to do this.')
 
+    # prohibit edits made to a locked or hidden topic by non-moderators
+    if not user.is_moderator() and (topic.flags & (TOPIC_IS_HIDDEN | TOPIC_IS_LOCKED) != 0):
+        raise HTTPException(status_code=403, detail='You do not have permission to do this.')
+
     dirty = False
 
     # Apply visibility change
@@ -303,8 +307,8 @@ async def reply_to_topic(req: Request, topic_id: int, content: Annotated[str, Fo
     if not topic:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='There is no such topic.')
 
-    # only mods can reply to hidden topics
-    if (topic.flags & TOPIC_IS_HIDDEN == TOPIC_IS_HIDDEN) and not user.is_moderator():
+    # only mods can reply to hidden / locked topics
+    if (topic.flags & (TOPIC_IS_HIDDEN | TOPIC_IS_LOCKED) != 0) and not user.is_moderator():
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='You do not have permission to do this.')
 
     # check topic contents
@@ -353,7 +357,7 @@ async def edit_post(req: Request, topic_id: int, post_id: int, patch_spec: PostP
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='You do not have permission to do this.')
     # if the topic or post is hidden, only a moderator can change it
     if (
-            topic.flags & TOPIC_IS_HIDDEN == TOPIC_IS_HIDDEN or post.flags & POST_IS_HIDDEN == POST_IS_HIDDEN) and not user.is_moderator():
+            topic.flags & (TOPIC_IS_HIDDEN | TOPIC_IS_LOCKED) != 0 or post.flags & POST_IS_HIDDEN == POST_IS_HIDDEN) and not user.is_moderator():
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='You do not have permission to do this.')
 
     dirty = False
