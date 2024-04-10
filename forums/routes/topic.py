@@ -192,16 +192,19 @@ class TopicPatchSpec(BaseModel):
 
     # topic author can set hide to True (apparently deleting the topic).
     # Moderators can set hide.
-    set_hide: Optional[bool]
+    set_hide: Optional[bool] = Field(default=None)
 
     # Moderators can set pin
-    set_pin: Optional[bool]
+    set_pin: Optional[bool] = Field(default=None)
 
     # topic author and moderators can set content
     set_content: Optional[str] = Field(default=None, le=2048, gt=0)
 
     # topic author and moderators can set title
     set_title: Optional[str] = Field(default=None, le=100, gt=0)
+
+    # moderators can lock and unlock topics
+    set_locked: Optional[bool] = Field(default=None)
 
     # moderators can set category
     set_category: Optional[int]
@@ -277,6 +280,14 @@ async def update_topic(req: Request, patch_spec: TopicPatchSpec, topic_id: int,
     # change the category
     if patch_spec.set_category and user.is_moderator():
         topic.parent_cat = patch_spec.set_category
+        dirty = True
+
+    # lock or unlock
+    if patch_spec.set_locked is not None and user.is_moderator():
+        if patch_spec.set_locked:
+            topic.flags |= TOPIC_IS_LOCKED
+        else:
+            topic.flags &= ~TOPIC_IS_LOCKED
         dirty = True
 
     # Commit if anything change
