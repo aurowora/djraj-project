@@ -8,6 +8,7 @@
 </head>
 <body>
     {% include 'header.html' %}
+    {% import 'macros.html' as macros %}
     <!-- TODO: Make this work -->
     <!--
     <nav>
@@ -81,6 +82,23 @@
                 </section>
             {% endif %}
 
+            {% if pins|length > 0 %}
+                <section class="topics">
+                    <div class="topic-header-wrapper">
+                        <h3 class="section-header">Pinned Topics ({{ pins|length}})</h3>
+                    </div>
+
+                    {% for topic in pins %}
+                        {{ macros.topic_row(topic) }}
+
+                        {% if not loop.last %}
+                            <hr />
+                        {% endif %}
+                    {% endfor %}
+
+                </section>
+            {% endif %}
+
             <section class="topics">
                 <div class="topic-header-wrapper">
                     <h3 class="section-header">Topics ({{ total_results }})</h3>
@@ -118,31 +136,7 @@
 
                 {% if total_results > 0 %}
                     {% for topic in topics %}
-                        <div class="topic-row">
-                            <div class="topic-title">
-                                <span>
-                                    <a href="/topic/{{ topic.topic_id }}">{{ topic.title }}</a>
-                                    {% if topic.is_hidden() %}
-                                        <span style="color:red">(HIDDEN)</span>
-                                    {% endif %}
-                                </span>
-                                <br/>
-                                Posted by <a href="/users/{{ topic.author.user_id }}">{{ topic.author.display_name }}</a> on {{ topic.created_at }}
-                            </div>
-
-                            <div class="topic-info">
-                                {% if topic.num_replies == 1 %}
-                                    1 Reply
-                                {% else %}
-                                    {{ topic.num_replies }} Replies
-                                {% endif %}
-
-                                {% if topic.most_recent_reply %}
-                                    <br/>
-                                    Last reply on {{ topic.most_recent_reply }}
-                                {% endif %}
-                            </div>
-                        </div>
+                        {{ macros.topic_row(topic) }}
 
                         {% if not loop.last %}
                             <hr />

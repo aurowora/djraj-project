@@ -76,7 +76,7 @@ def _maybe_row_to_topic_author(row: Optional[_JOIN_ROW]) -> Optional[TopicWithAu
     author = UserAPI(user_id=row[7], username=row[8], display_name=row[9], flags=row[10])
 
     obj_dict = dict(topic_id=row[0], author=author, title=row[3], content=row[4],
-                           created_at=mysql_date_to_python(row[5]), flags=row[6], parent_cat=row[1])
+                    created_at=mysql_date_to_python(row[5]), flags=row[6], parent_cat=row[1])
 
     if len(row) == 14:
         obj_dict['parent_cat_name'] = row[11]
@@ -108,7 +108,39 @@ class TopicRepository:
                     (topic_id,))
                 return _maybe_row_to_topic(await cur.fetchone())
 
-    async def generate_category_list_data(self, category_id: int, include_hidden=False, limit: int = 20, skip: int = 0) -> \
+    async def get_pinned_topics(self, category_id: int, include_hidden=False) -> Tuple[TopicWithAuthor, ...]:
+        """
+        Returns all topics which have the TOPIC_IS_PINNED flag set for a given category, sorting by most recent post
+        time, creation time, and title up.
+
+        Returns a tuple like (pinned_topics, ...)
+        """
+        where_clause = f'WHERE T.parent_cat = %s AND (T.flags & {TOPIC_IS_PINNED}) = {TOPIC_IS_PINNED}' if include_hidden else f'WHERE parent_cat = %s AND (T.flags & {TOPIC_IS_HIDDEN}) = 0 AND (T.flags & {TOPIC_IS_PINNED}) = {TOPIC_IS_PINNED}'
+
+        query_res = f'''
+        WITH
+                TQ AS (
+                        SELECT T.threadID as thr_id, T.parent_cat, T.userID AS thr_author, T.title AS topic_title, T.content AS thr_content, T.createdAt AS topic_created, T.flags AS tflags, U.id, U.MYUSER, U.display_name, U.flags AS uflags
+                        FROM threadsTable AS T JOIN loginTable AS U ON T.userID = U.id
+                        {where_clause}
+                    ),
+                PCQ AS (
+                SELECT TQ.*, COUNT(P.postID), MAX(P.createdAt) AS most_recent_repl FROM TQ LEFT OUTER JOIN postsTable AS P ON TQ.thr_id = P.threadID GROUP BY TQ.thr_id
+            )
+        SELECT * FROM PCQ
+        ORDER BY PCQ.most_recent_repl DESC, PCQ.topic_created DESC, PCQ.topic_title;
+        '''
+
+        async with self.__db.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    query_res,
+                    (category_id,)
+                )
+                return tuple(_maybe_row_to_topic_author(topic) for topic in await cur.fetchall())
+
+    async def generate_category_list_data(self, category_id: int, include_hidden=False, limit: int = 20,
+                                          skip: int = 0) -> \
             Tuple[int, Tuple[TopicWithAuthor, ...]]:
         """
         Returns all topics in a given category, sorting by most recent post time, creation time, and title
@@ -116,7 +148,7 @@ class TopicRepository:
 
         Returns a tuple like (total_results, (topics, ...))
         """
-        where_clause = 'WHERE T.parent_cat = %s' if include_hidden else f'WHERE parent_cat = %s AND (T.flags & {TOPIC_IS_HIDDEN}) = 0'
+        where_clause = f'WHERE T.parent_cat = %s AND (T.flags & {TOPIC_IS_PINNED}) = 0' if include_hidden else f'WHERE parent_cat = %s AND (T.flags & {TOPIC_IS_HIDDEN}) = 0 AND (T.flags & {TOPIC_IS_PINNED}) = 0'
 
         query_res = f'''
             WITH
@@ -164,7 +196,8 @@ class TopicRepository:
                 while row := await cur.fetchone():
                     yield _maybe_row_to_topic(row)  # is never None
 
-    async def generate_search_result_data(self, query: str, limit: int = 20, skip: int = 0, include_hidden=False) -> Tuple[int, Tuple[TopicWithAuthor, ...]]:
+    async def generate_search_result_data(self, query: str, limit: int = 20, skip: int = 0, include_hidden=False) -> \
+    Tuple[int, Tuple[TopicWithAuthor, ...]]:
         """
         Returns a generator over all topics that contain the phrase in the query, sorted by the creation time.
         This will return up to `limit` topics with an offset of `skip` from the beginning of the sorted topic set.

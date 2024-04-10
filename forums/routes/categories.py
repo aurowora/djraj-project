@@ -16,7 +16,6 @@ import regex
 from urllib.parse import urlencode
 import logging
 
-
 from forums.utils import get_category_repo, get_topic_repo, async_collect, get_templates
 
 cat_router = APIRouter()
@@ -49,12 +48,16 @@ async def category_index(req: Request, cat_id: int, page: int = 1, user: User = 
 
     offset = (page - 1) * TOPICS_PER_PAGE
 
-    cat, (total_results, topics), subcat = await gather(cat_repo.get_category_by_id(cat_id),
-                                                        topic_repo.generate_category_list_data(cat_id,
-                                                                                               include_hidden=user.is_moderator(),
-                                                                                               limit=TOPICS_PER_PAGE,
-                                                                                               skip=offset),
-                                                        async_collect(cat_repo.get_subcategories_of_category(cat_id, include_hidden_in_cnt=user.is_moderator())))
+    cat, (total_results, topics), subcat, pins = await gather(cat_repo.get_category_by_id(cat_id),
+                                                              topic_repo.generate_category_list_data(cat_id,
+                                                                                                     include_hidden=user.is_moderator(),
+                                                                                                     limit=TOPICS_PER_PAGE,
+                                                                                                     skip=offset),
+                                                              async_collect(
+                                                                  cat_repo.get_subcategories_of_category(cat_id,
+                                                                                                         include_hidden_in_cnt=user.is_moderator())),
+                                                              topic_repo.get_pinned_topics(cat_id,
+                                                                                           include_hidden=user.is_moderator()))
 
     if cat is None:
         raise HTTPException(status_code=404, detail='No such category')
@@ -76,6 +79,7 @@ async def category_index(req: Request, cat_id: int, page: int = 1, user: User = 
         'total_results': total_results,
         'user': user,
         'bread': bread,
+        'pins': pins
     }
 
     return tpl.TemplateResponse(req, name='cat_index.html', context=ctx)

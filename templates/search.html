@@ -8,6 +8,7 @@
 </head>
 <body>
     {% include 'header.html' %}
+    {% import 'macros.html' as macros %}
     <main>
         <div class="container">
             <section class="topics">
@@ -46,31 +47,7 @@
 
                 {% if total_results > 0 %}
                     {% for topic in results %}
-                        <div class="topic-row">
-                            <div class="topic-title">
-                                <span>
-                                    <a href="/topic/{{ topic.topic_id }}">{{ topic.title }}</a>
-                                    {% if topic.is_hidden() %}
-                                        <span style="color:red">(HIDDEN)</span>
-                                    {% endif %}
-                                </span>
-                                <br/>
-                                Posted by <a href="/users/{{ topic.author.user_id }}">{{ topic.author.display_name }}</a> on {{ topic.created_at }} in <a href="/categories/{{ topic.parent_cat }}/">{{ topic.parent_cat_name }}</a>
-                            </div>
-
-                            <div class="topic-info">
-                                {% if topic.num_replies == 1 %}
-                                    1 Reply
-                                {% else %}
-                                    {{ topic.num_replies }} Replies
-                                {% endif %}
-
-                                {% if topic.most_recent_reply %}
-                                    <br/>
-                                    Last reply on {{ topic.most_recent_reply }}
-                                {% endif %}
-                            </div>
-                        </div>
+                        {{ macros.topic_row(topic, show_cat=True) }}
 
                         {% if not loop.last %}
                             <hr />
