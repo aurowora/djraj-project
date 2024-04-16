@@ -42,7 +42,7 @@ class PostAttachmentRepository:
             async with conn.cursor() as cur:
                 await cur.execute('DELETE FROM postAttachments WHERE id = %s;', (attachment_id, ))
 
-    async def put_topic_attachment(self, attachment: PostAttachment) -> int:
+    async def put_attachment(self, attachment: PostAttachment) -> int:
         async with self.__db.acquire() as conn:
             async with conn.cursor() as cur:
                 if attachment.id is None:
