@@ -1,6 +1,6 @@
 import os
 import tomllib
-from typing import Optional
+from typing import Optional, List
 
 from pydantic import BaseModel, Field
 
@@ -26,6 +26,13 @@ class LoginConfig(BaseModel):
     login_ttl: int = Field(default=60 * 60 * 24 * 7, gt=60)
     # The minimum length of a password, must be in (0, 72]
     min_password_size: int = Field(default=12, gt=0, le=72)
+
+
+class StorageConfig(BaseModel):
+    path: str = Field(default='uploads')
+    allow_av_types: List[str] = Field(default=['image/png', 'image/jpeg', 'image/webp', 'image/avif'])
+    allow_attach_types: List[str] = Field(default=['image/*', 'audio/*', 'video/*', 'text/*'])
+    max_file_size: int = Field(default=1024 * 1024 * 20, ge=0)
 
 
 class Config(BaseModel):
