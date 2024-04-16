@@ -24,7 +24,7 @@ class TopicAttachmentRepository:
         self.__db = db
 
     async def get_attachments_of_topic(self, topic_id: int) -> Tuple[TopicAttachment, ...]:
-        query = 'SELECT * FROM threadAttachments WHERE thread = %s'
+        query = 'SELECT * FROM threadAttachments WHERE thread = %s;'
 
         async with self.__db.acquire() as conn:
             async with conn.cursor() as cur:
