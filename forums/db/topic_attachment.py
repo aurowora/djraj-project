@@ -42,7 +42,6 @@ class TopicAttachmentRepository:
             async with conn.cursor() as cur:
                 await cur.execute('DELETE FROM threadAttachments WHERE id = %s;', (attachment_id, ))
 
-
     async def put_topic_attachment(self, attachment: TopicAttachment) -> int:
         async with self.__db.acquire() as conn:
             async with conn.cursor() as cur:
