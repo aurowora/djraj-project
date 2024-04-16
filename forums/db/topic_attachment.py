@@ -16,7 +16,7 @@ def _maybe_row_to_topic_attachment(row: Any) -> Optional[TopicAttachment]:
     if row is None:
         return None
 
-    return TopicAttachment()
+    return TopicAttachment(id=row[0], thread=row[1], filename=row[2], author=row[3], createdAt=row[4])
 
 
 class TopicAttachmentRepository:
@@ -30,6 +30,18 @@ class TopicAttachmentRepository:
             async with conn.cursor() as cur:
                 await cur.execute(query, (topic_id,))
                 return tuple(_maybe_row_to_topic_attachment(atch) for atch in await cur.fetchall())
+
+    async def get_attachment(self, attachment_id: int):
+        async with self.__db.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute('SELECT * FROM threadAttachments WHERE id = %s;', (attachment_id, ))
+                return _maybe_row_to_topic_attachment(await cur.fetchone())
+
+    async def delete_attachment(self, attachment_id: int):
+        async with self.__db.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute('DELETE FROM threadAttachments WHERE id = %s;', (attachment_id, ))
+
 
     async def put_topic_attachment(self, attachment: TopicAttachment) -> int:
         async with self.__db.acquire() as conn:
