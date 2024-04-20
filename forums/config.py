@@ -32,6 +32,7 @@ class StorageConfig(BaseModel):
     path: str = Field(default='uploads')
     allow_av_types: List[str] = Field(default=['image/png', 'image/jpeg', 'image/webp', 'image/avif'])
     allow_attach_types: List[str] = Field(default=['image/*', 'audio/*', 'video/*', 'text/*'])
+    # note: this is a global limit
     max_file_size: int = Field(default=1024 * 1024 * 20, ge=0)
 
 
@@ -45,6 +46,8 @@ class Config(BaseModel):
     db: dict = Field(default_factory=dict)
     # Configures authentication
     login: LoginConfig
+    # configuration for attachments and avatar image uploads
+    storage: StorageConfig
 
 
 def load_config() -> Config:

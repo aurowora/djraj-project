@@ -1,6 +1,16 @@
 import re
 import unicodedata
+from typing import Optional
+import os
+import aiofiles
+
 import filetype
+from fastapi import HTTPException, UploadFile
+from starlette import status
+from starlette.requests import Request
+import logging
+
+from forums.config import StorageConfig
 
 __REGEX_SP_DASH = re.compile(r'[-\s]+', flags=re.RegexFlag.UNICODE)
 __REGEX_BAD_CHARS = re.compile(r'[^\w.]', flags=re.RegexFlag.UNICODE)
@@ -20,31 +30,8 @@ def _cmp_type(conf_type, r_type) -> bool:
     return (conf_type == '*' or conf_type == r_type) and (conf_subtype == '*' or conf_subtype == r_subtype)
 
 
-def is_allowed_type(valid_types, buf: bytes) -> bool:
-    """
-    Returns whether the contents of buf correspond to a file type included in the valid_types list.
-
-    Items in the valid_types list are specified as mime types (i.e. form type/subtype). For the contents
-    of buf to be allowed by this function, the mime type it maps to either be exactly the same as an item
-    in valid types or valid types must include a wild card that matches the type.
-
-    If the type of the contents of buffer cannot be determined, it is taken to be of type application/octet-stream. As
-    such, from a security standpoint, allowing application/octet-stream has similar implications to allowing */*
-
-    Example:
-        valid_types = ['audio/*'], buf contains bytes of type audio/mpeg -> accepted
-        valid_types = ['image/jpeg'], buf contains bytes of type image/png -> rejected
-        valid_types = ['audio/ogg'], buf contains bytes of type audio/ogg -> accepted
-        valid_types = ['application/octet-stream'], buf contains bytes of an indeterminate type -> accepted
-    """
-    g = filetype.guess_mime(buf)
-    if g is None:
-        g = 'application/octet-stream'
-
-    for t in valid_types:
-        if _cmp_type(t, g):
-            return True
-    return False
+def is_allowed_type(valid_types, buf: UploadFile) -> bool:
+    return True
 
 
 def escape_filename(filename: str) -> str:
@@ -73,3 +60,41 @@ def escape_filename(filename: str) -> str:
         raise ValueError('Invalid filename')
 
     return filename
+
+
+__REGEX_REWRITE_FNAME = re.compile(r'^(.+)\.(\w{1,4})$', flags=re.UNICODE)
+
+
+def _next_name(filename: str, i: int = 0):
+    if i == 0:
+        return filename
+
+    if m := __REGEX_REWRITE_FNAME.match(filename):
+        return f'{m.groups()[0]}.{i}.{m.groups()[1]}'
+    else:
+        return f'{filename}.{i}'
+
+
+MAX_OPEN_ATTEMPTS = 100
+
+
+async def create_next_file(path, topic: int, filename: str, post: Optional[int] = None):
+    base_path = os.path.join(path, 'attachments', str(topic))
+    if post is not None:
+        base_path = os.path.join(base_path, str(post))
+
+    os.makedirs(base_path, exist_ok=True)
+
+    i = 0
+    while i < MAX_OPEN_ATTEMPTS:
+        try:
+            # x maps to O_CREAT
+            fname = _next_name(filename, i)
+            fpath = os.path.join(base_path, fname)
+            fd = await aiofiles.open(fpath, 'xb')
+            return fd, fname, fpath
+        except FileExistsError:
+            pass
+        i += 1
+
+    raise Exception(f'could not find an unused filename after {MAX_OPEN_ATTEMPTS} attempts')

@@ -1,23 +1,29 @@
+import os
 from urllib.parse import urlencode
 
-from fastapi import Form, APIRouter, Depends, HTTPException, Request
-from typing import Annotated, Optional
+from fastapi import Form, APIRouter, Depends, HTTPException, Request, UploadFile, File
+from typing import Annotated, Optional, List
 
 from pydantic import BaseModel, Field
 from pymysql import IntegrityError
 from starlette import status
-from starlette.responses import RedirectResponse, Response
+from starlette.responses import RedirectResponse, Response, FileResponse
 from starlette.templating import Jinja2Templates
 
+from forums.blocking import spawn_blocking
 from forums.db.categories import CategoryRepository
 from forums.db.posts import PostRepository, Post, POST_IS_HIDDEN
+from forums.db.topic_attachment import TopicAttachment, TopicAttachmentRepository
 from forums.db.topics import TOPIC_ALL_FLAGS, Topic, TopicRepository, TOPIC_IS_HIDDEN, TOPIC_IS_PINNED, TOPIC_IS_LOCKED
 from forums.db.users import User, IS_USER_RESTRICTED, IS_USER_MODERATOR, UserRepository, get_user_repo
+from forums.ioutil import escape_filename, create_next_file, is_allowed_type
 from forums.models import UserAPI
 from forums.routes.auth import current_user, csrf_verify, generate_csrf_token
 import regex  # use instead of re for more advanced regex support
+import logging
+from aiofiles.os import unlink as async_unlink
 
-from forums.utils import get_topic_repo, get_post_repo, get_category_repo, get_templates
+from forums.utils import get_topic_repo, get_post_repo, get_category_repo, get_templates, get_topic_attach_repo
 
 topic_router = APIRouter()
 
@@ -34,9 +40,11 @@ REPLIES_PER_PAGE = 20
 async def create_topic(req: Request,
                        title: Annotated[str, Form()], content: Annotated[str, Form()],
                        category: Annotated[int, Form()], create_flags: Annotated[int, Form()],
+                       files: Annotated[List[UploadFile], File()],
                        csrf_token: Annotated[str, Form()],
                        user: User = Depends(current_user),
-                       topic_repo: TopicRepository = Depends(get_topic_repo)):
+                       topic_repo: TopicRepository = Depends(get_topic_repo),
+                       topic_attach_repo: TopicAttachmentRepository = Depends(get_topic_attach_repo)):
     eparams = {'child_of': str(category)}
 
     if user.flags & IS_USER_RESTRICTED == IS_USER_RESTRICTED:
@@ -86,11 +94,24 @@ async def create_topic(req: Request,
                   content=content.strip(), flags=create_flags, author_id=user.user_id)
 
     try:
-        await topic_repo.put_topic(topic)
+        topic_id = await topic_repo.put_topic(topic)
     except IntegrityError:
         return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER,
                                 url=f'/new_topic?%s' % urlencode({
                                     'error': f'target category is not valid',
+                                    **eparams
+                                }))
+
+    # add the attachments
+    try:
+        for uploadf in files:
+            attach = await create_topic_attachment(req, topic_id, uploadf.filename, uploadf, user.user_id)
+            await topic_attach_repo.put_attachment(attach)
+    except Exception as e:
+        logging.error('file upload error', exc_info=e)
+        return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER,
+                                url=f'/new_topic?%s' % urlencode({
+                                    'error': f'attachment has a bad file name or bad file type',
                                     **eparams
                                 }))
 
@@ -109,7 +130,8 @@ async def get_topic(req: Request,
                     posts_repo: PostRepository = Depends(get_post_repo),
                     user: User = Depends(current_user),
                     tpl: Jinja2Templates = Depends(get_templates),
-                    csrf_token: str = Depends(generate_csrf_token)):
+                    csrf_token: str = Depends(generate_csrf_token),
+                    topic_attach_repo: TopicAttachmentRepository = Depends(get_topic_attach_repo)):
     if page < 1:
         raise HTTPException(status_code=400, detail='page must be greater than 0')
 
@@ -148,6 +170,9 @@ async def get_topic(req: Request,
         bread.append((j.id, j.cat_name))
     bread.reverse()
 
+    # load attachments
+    attachments = await topic_attach_repo.get_attachments_of_topic(topic.topic_id)
+
     ctx = {
         'user': user,
         'author': author,
@@ -160,9 +185,28 @@ async def get_topic(req: Request,
         'base_url': f'/topic/{topic.topic_id}/',
         'csrf_token': csrf_token,
         'bread': bread,
+        't_attachments': attachments
     }
 
     return tpl.TemplateResponse(request=req, name='topic.html', context=ctx)
+
+
+@topic_router.get('/{topic_id}/attachments/{attachment_id}')
+async def download_attachment(req: Request, topic_id: int, attachment_id: int, user: User = Depends(current_user),
+                              topic_attach_repo: TopicAttachmentRepository = Depends(get_topic_attach_repo),
+                              topic_repo: TopicRepository = Depends(get_topic_repo)):
+    topic = await topic_repo.get_topic_by_id(topic_id)
+    if topic is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='There is no such topic.')
+    if topic.is_hidden() and not user.is_moderator():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='There is no such topic.')
+
+    topic_attachment = await topic_attach_repo.get_attachment(attachment_id)
+    if topic_attachment is None or topic_attachment.thread != topic_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='There is no such attachment.')
+
+    fpath = os.path.join(req.app.state.cfg.storage.path, 'attachments', str(topic.topic_id), topic_attachment.filename)
+    return FileResponse(path=fpath, filename=topic_attachment.filename, content_disposition_type='attachment')
 
 
 @topic_router.delete('/{topic_id}')
@@ -395,3 +439,37 @@ async def edit_post(req: Request, topic_id: int, post_id: int, patch_spec: PostP
         await post_repo.put_post(post)
 
     return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER, url=f'/topic/{topic_id}/')
+
+
+async def create_topic_attachment(req: Request, topic_id: int, filename: str, data: UploadFile, author: int):
+    """
+    May raise the following exceptions:
+      ValueError - Bad filename or file type
+      Exception - MAX_OPEN_ATTEMPTS exceeded
+      OSError - Problem opening the file for writing
+    """
+    sconf = req.app.state.cfg.storage
+
+    # check that the file type is allowed
+    if not is_allowed_type(sconf.allow_attach_types, data):
+        raise ValueError('content type not allowed')
+    await data.seek(0)
+
+    fname = escape_filename(filename)
+
+    (fd, fname, fpath) = await create_next_file(sconf.path, topic_id, fname)
+
+    try:
+        while (b := await data.read(512)) != b'':
+            await fd.write(b)
+        await fd.close()
+    except Exception as e:
+        await fd.close()
+        await async_unlink(fpath)
+        raise e
+
+    logging.info("file upload: author = %s, topic = %s, fpath = %s, size = %s" % (
+        author, topic_id, fpath, data.size
+    ))
+
+    return TopicAttachment(id=None, thread=topic_id, filename=fname, author=author, createdAt=None)

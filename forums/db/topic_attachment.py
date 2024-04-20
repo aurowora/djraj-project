@@ -7,9 +7,9 @@ from pydantic import BaseModel, Field
 class TopicAttachment(BaseModel):
     id: Optional[int] = Field(default=None)
     thread: int
-    filename: str = Field(lte=128, gt=0)
+    filename: str = Field(max_length=128, min_length=1)
     author: int
-    createdAt: datetime
+    createdAt: Optional[datetime] = Field(default=None)
 
 
 def _maybe_row_to_topic_attachment(row: Any) -> Optional[TopicAttachment]:
@@ -31,7 +31,7 @@ class TopicAttachmentRepository:
                 await cur.execute(query, (topic_id,))
                 return tuple(_maybe_row_to_topic_attachment(atch) for atch in await cur.fetchall())
 
-    async def get_attachment(self, attachment_id: int):
+    async def get_attachment(self, attachment_id: int) -> Optional[TopicAttachment]:
         async with self.__db.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute('SELECT * FROM threadAttachments WHERE id = %s;', (attachment_id, ))

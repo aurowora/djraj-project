@@ -16,7 +16,6 @@ class UserAPI(BaseModel):
         """
         return cls(user_id=user.user_id, username=user.username, display_name=user.display_name, flags=user.flags)
 
-    # Note: none here indicates a fake user obj without any db equiv
     user_id: Optional[int]
     username: str = Field(default='system')
     display_name: str = Field(default='System')

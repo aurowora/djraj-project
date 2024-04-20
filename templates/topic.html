@@ -44,6 +44,16 @@
                     <pre>{{ topic.content }}</pre>
                 </div>
 
+                {% if t_attachments|length > 0 %}
+                    <div class="topic-attachments">
+                        Attachments ({{ t_attachments|length }}):
+
+                        {% for attachment in t_attachments %}
+                            <a href="/topic/{{attachment.thread}}/attachments/{{attachment.id}}">{{ attachment.filename }}</a>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
                 <div class="topic-actions">
                     <!--TODO-->
                 </div>

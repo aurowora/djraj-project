@@ -22,7 +22,7 @@
                 </div>
             {% endif %}
 
-            <form method="post" action="/topic/">
+            <form method="post" action="/topic/" enctype="multipart/form-data">
                 <div>
                     <label>
                         Topic Title:
@@ -33,6 +33,12 @@
                     <label>
                         Topic Content:
                         <textarea name="content" style="resize: vertical;" class="text-input" maxlength="4000" rows="16" required></textarea>
+                    </label>
+                </div>
+                <div>
+                    <label>
+                        Attachments:
+                        <input type="file" name="files" multiple>
                     </label>
                 </div>
 
