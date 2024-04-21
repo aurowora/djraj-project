@@ -1,3 +1,4 @@
+import asyncio
 import os
 from urllib.parse import urlencode
 
@@ -12,6 +13,7 @@ from starlette.templating import Jinja2Templates
 
 from forums.blocking import spawn_blocking
 from forums.db.categories import CategoryRepository
+from forums.db.post_attachment import PostAttachment, PostAttachmentRepository
 from forums.db.posts import PostRepository, Post, POST_IS_HIDDEN
 from forums.db.topic_attachment import TopicAttachment, TopicAttachmentRepository
 from forums.db.topics import TOPIC_ALL_FLAGS, Topic, TopicRepository, TOPIC_IS_HIDDEN, TOPIC_IS_PINNED, TOPIC_IS_LOCKED
@@ -23,7 +25,8 @@ import regex  # use instead of re for more advanced regex support
 import logging
 from aiofiles.os import unlink as async_unlink
 
-from forums.utils import get_topic_repo, get_post_repo, get_category_repo, get_templates, get_topic_attach_repo
+from forums.utils import get_topic_repo, get_post_repo, get_category_repo, get_templates, get_topic_attach_repo, \
+    get_post_attach_repo
 
 topic_router = APIRouter()
 
@@ -105,7 +108,7 @@ async def create_topic(req: Request,
     # add the attachments
     try:
         for uploadf in files:
-            attach = await create_topic_attachment(req, topic_id, uploadf.filename, uploadf, user.user_id)
+            attach = await create_attachment(req, topic_id, uploadf.filename, uploadf, user.user_id)
             await topic_attach_repo.put_attachment(attach)
     except Exception as e:
         logging.error('file upload error', exc_info=e)
@@ -131,7 +134,8 @@ async def get_topic(req: Request,
                     user: User = Depends(current_user),
                     tpl: Jinja2Templates = Depends(get_templates),
                     csrf_token: str = Depends(generate_csrf_token),
-                    topic_attach_repo: TopicAttachmentRepository = Depends(get_topic_attach_repo)):
+                    topic_attach_repo: TopicAttachmentRepository = Depends(get_topic_attach_repo),
+                    post_attach_repo: PostAttachmentRepository = Depends(get_post_attach_repo)):
     if page < 1:
         raise HTTPException(status_code=400, detail='page must be greater than 0')
 
@@ -162,6 +166,12 @@ async def get_topic(req: Request,
     # load posts
     (count, posts) = await posts_repo.get_posts_of_topic(topic_id, limit=REPLIES_PER_PAGE, skip=offset, include_hidden=user.is_moderator())
 
+    # load post attachments
+    post_attachments = {}
+    for atchs in await asyncio.gather(*[post_attach_repo.get_attachments_of_post(post.post_id) for post in posts]):
+        if len(atchs) > 0:
+            post_attachments[atchs[0].post] = atchs
+
     # generate the breadcrumb
     bread = [(category.id, category.cat_name)]
     j = category
@@ -170,7 +180,7 @@ async def get_topic(req: Request,
         bread.append((j.id, j.cat_name))
     bread.reverse()
 
-    # load attachments
+    # load topic attachments
     attachments = await topic_attach_repo.get_attachments_of_topic(topic.topic_id)
 
     ctx = {
@@ -185,14 +195,15 @@ async def get_topic(req: Request,
         'base_url': f'/topic/{topic.topic_id}/',
         'csrf_token': csrf_token,
         'bread': bread,
-        't_attachments': attachments
+        't_attachments': attachments,
+        'p_attachments': post_attachments
     }
 
     return tpl.TemplateResponse(request=req, name='topic.html', context=ctx)
 
 
 @topic_router.get('/{topic_id}/attachments/{attachment_id}')
-async def download_attachment(req: Request, topic_id: int, attachment_id: int, user: User = Depends(current_user),
+async def download_attachment_of_topic(req: Request, topic_id: int, attachment_id: int, user: User = Depends(current_user),
                               topic_attach_repo: TopicAttachmentRepository = Depends(get_topic_attach_repo),
                               topic_repo: TopicRepository = Depends(get_topic_repo)):
     topic = await topic_repo.get_topic_by_id(topic_id)
@@ -209,26 +220,18 @@ async def download_attachment(req: Request, topic_id: int, attachment_id: int, u
     return FileResponse(path=fpath, filename=topic_attachment.filename, content_disposition_type='attachment')
 
 
-@topic_router.delete('/{topic_id}')
-async def delete_topic(req: Request, topic_id: int, csrf_token: str, user: User = Depends(current_user),
-                       topic_repo: TopicRepository = Depends(get_topic_repo)):
-    # check csrf
-    csrf_verify(req, csrf_token)
+@topic_router.get('/{topic_id}/{post_id}/attachments/{attachment_id}')
+async def download_attachment_of_post(req: Request, topic_id: int, post_id: int, attachment_id: int, user: User = Depends(current_user), post_attach_repo: PostAttachmentRepository = Depends(get_post_attach_repo), post_repo: PostRepository = Depends(get_post_repo)):
+    post = await post_repo.get_post_by_id(post_id, include_hidden=user.is_moderator())
+    if post is None or post.topic_id != topic_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='There is no such post.')
 
-    # load topic
-    topic = await topic_repo.get_topic_by_id(topic_id, include_hidden=user.is_moderator())
-    if not topic:
-        raise HTTPException(status_code=404, detail='No such topic')
+    post_attachment = await post_attach_repo.get_attachment(attachment_id)
+    if post_attachment is None or post_attachment.post != post_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='There is no such attachment.')
 
-    # check user perms
-    # we only allow admins to delete topics (users can only hide their own topics)
-    if user.flags & IS_USER_MODERATOR != IS_USER_MODERATOR:
-        raise HTTPException(status_code=403, detail='You do not have permission to do that.')
-
-    await topic_repo.delete_topic_by_id(topic_id)
-
-    # TODO: When the category view is done, redirect the user to the category that the topic belonged to.
-    return Response(status_code=204)
+    fpath = os.path.join(req.app.state.cfg.storage.path, 'attachments', str(post.topic_id), '.posts', str(post.post_id), post_attachment.filename)
+    return FileResponse(path=fpath, filename=post_attachment.filename, content_disposition_type='attachment')
 
 
 class TopicPatchSpec(BaseModel):
@@ -348,9 +351,11 @@ async def update_topic(req: Request, patch_spec: TopicPatchSpec, topic_id: int,
 
 @topic_router.post('/{topic_id}/reply')
 async def reply_to_topic(req: Request, topic_id: int, content: Annotated[str, Form()],
+                         files: Annotated[List[UploadFile], File()],
                          csrf_token: Annotated[str, Form()], user: User = Depends(current_user),
                          topic_repo: TopicRepository = Depends(get_topic_repo),
-                         post_repo: PostRepository = Depends(get_post_repo)):
+                         post_repo: PostRepository = Depends(get_post_repo),
+                         post_attach_repo: PostAttachmentRepository = Depends(get_post_attach_repo)):
     if user.is_restricted():
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='You do not have permission to do this.')
 
@@ -380,6 +385,16 @@ async def reply_to_topic(req: Request, topic_id: int, content: Annotated[str, Fo
                 flags=0)
 
     await post_repo.put_post(post)
+
+    # add the attachments
+    try:
+        for uploadf in files:
+            attach = await create_attachment(req, topic_id, uploadf.filename, uploadf, user.user_id, post=post.post_id)
+            await post_attach_repo.put_attachment(attach)
+    except Exception as e:
+        logging.error('file upload error', exc_info=e)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail='bad attachment.')
 
     return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER, url=f'/topic/{topic_id}/')
 
@@ -441,7 +456,8 @@ async def edit_post(req: Request, topic_id: int, post_id: int, patch_spec: PostP
     return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER, url=f'/topic/{topic_id}/')
 
 
-async def create_topic_attachment(req: Request, topic_id: int, filename: str, data: UploadFile, author: int):
+async def create_attachment(req: Request, topic_id: int, filename: str, data: UploadFile, author: int,
+                                  post: Optional[int] = None):
     """
     May raise the following exceptions:
       ValueError - Bad filename or file type
@@ -457,7 +473,7 @@ async def create_topic_attachment(req: Request, topic_id: int, filename: str, da
 
     fname = escape_filename(filename)
 
-    (fd, fname, fpath) = await create_next_file(sconf.path, topic_id, fname)
+    (fd, fname, fpath) = await create_next_file(sconf.path, topic_id, fname, post=post)
 
     try:
         while (b := await data.read(512)) != b'':
@@ -468,8 +484,11 @@ async def create_topic_attachment(req: Request, topic_id: int, filename: str, da
         await async_unlink(fpath)
         raise e
 
-    logging.info("file upload: author = %s, topic = %s, fpath = %s, size = %s" % (
-        author, topic_id, fpath, data.size
+    logging.info("file upload: author = %s, topic = %s, fpath = %s, size = %s, post = %s" % (
+        author, topic_id, fpath, data.size, post
     ))
 
-    return TopicAttachment(id=None, thread=topic_id, filename=fname, author=author, createdAt=None)
+    if post is None:
+        return TopicAttachment(id=None, thread=topic_id, filename=fname, author=author, createdAt=None)
+    else:
+        return PostAttachment(id=None, post=post, filename=fname, author=author, createdAt=None)

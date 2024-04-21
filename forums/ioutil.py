@@ -81,7 +81,7 @@ MAX_OPEN_ATTEMPTS = 100
 async def create_next_file(path, topic: int, filename: str, post: Optional[int] = None):
     base_path = os.path.join(path, 'attachments', str(topic))
     if post is not None:
-        base_path = os.path.join(base_path, str(post))
+        base_path = os.path.join(base_path, '.posts', str(post))
 
     os.makedirs(base_path, exist_ok=True)
 

@@ -25,7 +25,7 @@ _ROW = Tuple[int, int, int, str, str, str, int]
 
 
 def _maybe_row_to_post(row: Optional[_ROW]) -> Optional[Post]:
-    return Post(post_id=row[0], thread_id=row[1], author_id=row[2], content=row[3],
+    return Post(post_id=row[0], topic_id=row[1], author_id=row[2], content=row[3],
                 created_at=mysql_date_to_python(row[4]), flags=row[5]) if row is not None else None
 
 
@@ -53,7 +53,7 @@ class PostRepository:
         async with self.__db.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    f"SELECT {_ROW_SPEC} FROM postsTable WHERE postID = %s;" if include_hidden else f"SELECT {_ROW_SPEC} FROM postsTable WHERE postID = %s AND (flags & {POST_IS_HIDDEN}) = 0;",
+                    f"SELECT * FROM postsTable WHERE postID = %s;" if include_hidden else f"SELECT {_ROW_SPEC} FROM postsTable WHERE postID = %s AND (flags & {POST_IS_HIDDEN}) = 0;",
                     (post_id,))
                 return _maybe_row_to_post(await cur.fetchone())
 

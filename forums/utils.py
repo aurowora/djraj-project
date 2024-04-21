@@ -4,6 +4,7 @@ from fastapi import Request
 from pydantic import BaseModel, Field
 
 from forums.db.categories import CategoryRepository
+from forums.db.post_attachment import PostAttachmentRepository
 from forums.db.topic_attachment import TopicAttachmentRepository
 from forums.db.topics import TopicRepository
 from forums.db.posts import PostRepository
@@ -28,6 +29,10 @@ def get_post_repo(req: Request) -> PostRepository:
 
 def get_topic_attach_repo(req: Request) -> TopicAttachmentRepository:
     return TopicAttachmentRepository(req.app.state.db)
+
+
+def get_post_attach_repo(req: Request) -> PostAttachmentRepository:
+    return PostAttachmentRepository(req.app.state.db)
 
 
 async def async_collect[T](gen: AsyncGenerator[T, None]) -> Tuple[T, ...]:

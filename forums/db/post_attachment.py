@@ -7,9 +7,9 @@ from pydantic import BaseModel, Field
 class PostAttachment(BaseModel):
     id: Optional[int] = Field(default=None)
     post: int
-    filename: str = Field(lte=128, gt=0)
+    filename: str = Field(max_length=128, min_length=0)
     author: int
-    createdAt: datetime
+    createdAt: Optional[datetime]
 
 
 def _maybe_row_to_post_attachment(row: Any) -> Optional[PostAttachment]:
@@ -23,8 +23,8 @@ class PostAttachmentRepository:
     def __init__(self, db):
         self.__db = db
 
-    async def get_attachments_of_topic(self, post_id: int) -> Tuple[PostAttachment, ...]:
-        query = 'SELECT * FROM postAttachments WHERE post = %s;'
+    async def get_attachments_of_post(self, post_id: int) -> Tuple[PostAttachment, ...]:
+        query = 'SELECT * FROM postsAttachments WHERE post = %s;'
 
         async with self.__db.acquire() as conn:
             async with conn.cursor() as cur:
@@ -34,13 +34,13 @@ class PostAttachmentRepository:
     async def get_attachment(self, attachment_id: int):
         async with self.__db.acquire() as conn:
             async with conn.cursor() as cur:
-                await cur.execute('SELECT * FROM postAttachments WHERE id = %s;', (attachment_id, ))
+                await cur.execute('SELECT * FROM postsAttachments WHERE id = %s;', (attachment_id, ))
                 return _maybe_row_to_post_attachment(await cur.fetchone())
 
     async def delete_attachment(self, attachment_id: int):
         async with self.__db.acquire() as conn:
             async with conn.cursor() as cur:
-                await cur.execute('DELETE FROM postAttachments WHERE id = %s;', (attachment_id, ))
+                await cur.execute('DELETE FROM postsAttachments WHERE id = %s;', (attachment_id, ))
 
     async def put_attachment(self, attachment: PostAttachment) -> int:
         async with self.__db.acquire() as conn:
@@ -48,7 +48,7 @@ class PostAttachmentRepository:
                 if attachment.id is None:
                     # createdAt set by default func
                     await cur.execute(
-                        'INSERT INTO postAttachments (post, filename, author) VALUES (%s, %s, %s);',
+                        'INSERT INTO postsAttachments (post, filename, author) VALUES (%s, %s, %s);',
                         (attachment.post, attachment.filename, attachment.author)
                     )
                     attachment.id = cur.lastrowid
@@ -56,7 +56,7 @@ class PostAttachmentRepository:
                 else:
                     # createdAt deliberately excluded
                     num_rows = await cur.execute(
-                        'UPDATE postAttachments SET post = %s, filename = %s, author = %s WHERE id = %s;',
+                        'UPDATE postsAttachments SET post = %s, filename = %s, author = %s WHERE id = %s;',
                         (attachment.post, attachment.filename, attachment.author, attachment.id)
                     )
                     if num_rows < 1:

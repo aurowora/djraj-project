@@ -74,6 +74,16 @@
                             <pre>{{ post.content }}</pre>
                         </div>
 
+                        {% if p_attachments[post.post_id] %}
+                        <div class="post-attachments">
+                            Attachments ({{ p_attachments[post.post_id]|length }}):
+
+                            {% for attachment in p_attachments[post.post_id] %}
+                                <a href="/topic/{{post.topic_id}}/{{ attachment.post }}/attachments/{{attachment.id}}">{{ attachment.filename }}</a>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+
                         <div class="post-actions">
                             <!-- TODO -->
                         </div>
@@ -112,10 +122,16 @@
                 {% if user.is_moderator() or not (topic.is_locked() or user.is_restricted()) %}
 
 
-                        <form method="post" action="/topic/{{ topic.topic_id }}/reply">
+                        <form method="post" action="/topic/{{ topic.topic_id }}/reply" enctype="multipart/form-data">
                             <label>
                                 Reply to <strong>{{ topic.title }}</strong>:
                                 <textarea name="content" rows="8" style="resize: vertical" class="text-input"></textarea>
+                            </label>
+                            <label>
+                                Attach Files:
+                                <input type="file" name="files" multiple>
+                                <br>
+                                <br>
                             </label>
                             <input type="hidden" name="csrf_token" value="{{csrf_token}}">
                             <button type="submit">Submit</button>
