@@ -108,8 +108,9 @@ async def create_topic(req: Request,
     # add the attachments
     try:
         for uploadf in files:
-            attach = await create_attachment(req, topic_id, uploadf.filename, uploadf, user.user_id)
-            await topic_attach_repo.put_attachment(attach)
+            if uploadf.filename != "":
+                attach = await create_attachment(req, topic_id, uploadf.filename, uploadf, user.user_id)
+                await topic_attach_repo.put_attachment(attach)
     except Exception as e:
         logging.error('file upload error', exc_info=e)
         return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER,
@@ -389,8 +390,10 @@ async def reply_to_topic(req: Request, topic_id: int, content: Annotated[str, Fo
     # add the attachments
     try:
         for uploadf in files:
-            attach = await create_attachment(req, topic_id, uploadf.filename, uploadf, user.user_id, post=post.post_id)
-            await post_attach_repo.put_attachment(attach)
+            if uploadf.filename != "":
+                attach = await create_attachment(req, topic_id, uploadf.filename, uploadf, user.user_id,
+                                                 post=post.post_id)
+                await post_attach_repo.put_attachment(attach)
     except Exception as e:
         logging.error('file upload error', exc_info=e)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
