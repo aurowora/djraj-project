@@ -11,6 +11,7 @@
 
         {% if user %}
         <div class="user-nav">
+            <span><a href="/users/{{user.id}}">Profile</a></span>
             <span>{{ user.display_name }} (<a href="/auth/logout">Logout?</a>)</span>
         </div>
         {% endif %}
