@@ -12,11 +12,12 @@
         <main>
             <div class="container">
                 <section id="profile">
-                    <h2>{{ user.name }}'s Profile</h2>
+                    <h2>{{ user.display_name }}'s Profile</h2>
                     ProfilePicture here <br>
-                    Member since: <br>
-                    Number of threads created: <br>
                     
+
+                    <h2>Recent Post</h2>
+                    {{ topic.created_at }} in {{ category.cat_name }}
                     {% if error %}
                     <div class="banner-error">
                         {{ error }}
