@@ -47,7 +47,13 @@
                         <h3 class="section-header">Subcategories ({{ children|length }})</h3>
 
                         {% if user.is_moderator() %}
-                        <a href="/new_category?child_of={{ category.id }}">New Subcategory</a>
+                            <div>
+                                <a href="/new_category?child_of={{ category.id }}">Create Child</a>
+                                <a href="/categories/{{ category.id }}/edit">Edit</a>
+                                {% if children|length == 0 and total_results == 0 %}
+                                <a href="#">Delete</a>
+                                {% endif %}
+                            </div>
                         {% endif %}
                     </div>
 

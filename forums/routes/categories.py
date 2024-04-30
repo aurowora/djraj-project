@@ -8,10 +8,10 @@ from starlette.templating import Jinja2Templates
 from forums.db.categories import CategoryRepository, Category
 from forums.db.topics import TopicRepository
 from forums.db.users import User
-from forums.routes.auth import current_user
+from forums.routes.auth import current_user, generate_csrf_token
 from forums.routes.auth import csrf_verify
 from asyncio import gather
-from typing import Annotated
+from typing import Annotated, Optional
 import regex
 from urllib.parse import urlencode
 import logging
@@ -83,6 +83,33 @@ async def category_index(req: Request, cat_id: int, page: int = 1, user: User = 
     }
 
     return tpl.TemplateResponse(req, name='cat_index.html', context=ctx)
+
+
+@cat_router.get('/{cat_id}/edit')
+async def edit_category_page(req: Request, cat_id: int, error: Optional[str] = None, user: User = Depends(current_user),
+                             cat_repo: CategoryRepository = Depends(get_category_repo),
+                             tpl: Jinja2Templates = Depends(get_templates),
+                             csrf_token: str = Depends(generate_csrf_token)):
+    if not user.is_moderator():
+        raise HTTPException(status_code=403, detail='You do not have permission to do this.')
+
+    category = await cat_repo.get_category_by_id(cat_id)
+    if not category:
+        raise HTTPException(status_code=404, detail='No such category exists.')
+
+    all_categories = [c for c in await cat_repo.get_all_categories() if c.id != cat_id]
+
+    ctx = {
+        'csrf_token': csrf_token,
+        'user': user,
+        'category': category,
+        'all_categories': all_categories
+    }
+
+    if error:
+        ctx['error'] = error
+
+    return tpl.TemplateResponse(req, name='new_category.html', context=ctx)
 
 
 @cat_router.post('/create')
@@ -180,41 +207,50 @@ class CategoryPatchDesc(BaseModel):
     csrf_token: str
 
 
-@cat_router.patch('/{cat_id}')
+@cat_router.post('/{cat_id}/edit')
 async def patch_category(req: Request,
-                         cat_id: int, patch: CategoryPatchDesc, user: User = Depends(current_user),
+                         cat_id: int, name: Annotated[str, Form()], desc: Annotated[str, Form()],
+                         parent: Annotated[int, Form()], csrf_token: Annotated[str, Form()],
+                         user: User = Depends(current_user),
                          cat_repo: CategoryRepository = Depends(get_category_repo)):
     # check priv
     if not user.is_moderator():
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Only moderators can edit categories.')
+        return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER,
+                                url=f'/categories/{cat_id}/edit?%s' % urlencode({
+                                    'error': 'only moderators can edit categories'
+                                }))
 
-    csrf_verify(req, patch.csrf_token)
+    csrf_verify(req, csrf_token)
 
-    # load category and update it according to patch
+    # load category and update it accordingly
     if (cat := await cat_repo.get_category_by_id(cat_id)) is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No such category exists.')
+        return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER,
+                                url=f'/categories/{cat_id}/edit?%s' % urlencode({
+                                    'error': 'no such category exists'
+                                }))
 
-    if patch.set_name is not None:
-        if not _name_is_valid(patch.set_name):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='name is not valid')
-        cat.cat_name = patch.set_name
+    if not _name_is_valid(name):
+        return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER,
+                                url=f'/categories/{cat_id}/edit?%s' % urlencode({
+                                    'error': 'name is not valid'
+                                }))
+    if not _desc_is_valid(name):
+        return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER,
+                                url=f'/categories/{cat_id}/edit?%s' % urlencode({
+                                    'error': 'description is not valid'
+                                }))
 
-    if patch.set_desc is not None:
-        if not _desc_is_valid(patch.set_desc):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='desc is not valid')
-        cat.cat_desc = patch.set_desc
-
-    if patch.set_parent is not None:
-        if patch.set_parent < 0:
-            cat.parent_cat = None
-        else:
-            cat.parent_cat = patch.set_parent
+    cat.cat_name = name
+    cat.cat_desc = desc
+    cat.parent_cat = parent
 
     # try commit
     try:
         await cat_repo.put_category(cat)
     except IntegrityError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='The parent category is not valid.')
+        return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER,
+                                url=f'/categories/{cat_id}/edit?%s' % urlencode({
+                                    'error': 'the parent category is not valid'
+                                }))
 
-    # todo: better integrate with the front end
     return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER, url=f'/categories/{cat.id}')

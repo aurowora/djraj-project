@@ -3,7 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% if category %}
+    <title>Edit Category - Forum</title>
+    {% else %}
     <title>Create Category - Forum</title>
+    {% endif %}
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -12,13 +16,19 @@
     <div class="container">
         <div class="new-cat-form">
 
-            {% if parent_cat %}
+            {% if category %}
+                <a class="form-link" href="/categories/{{ category.id }}">Go Back</a>
+            {% elif parent_cat %}
                 <a class="form-link" href="/categories/{{ parent_cat.id }}">Go Back</a>
             {% else %}
                 <a class="form-link" href="/">Go Back</a>
             {% endif %}
 
+            {% if category %}
+            <h2>Edit Category</h2>
+            {% else %}
             <h2>New Category</h2>
+            {% endif %}
 
             {% if error %}
                 <div class="banner-error mb-2">
@@ -26,20 +36,32 @@
                 </div>
             {% endif %}
 
-            <form method="post" action="/categories/create">
+
+            <form method="post" {% if category %} action="/categories/{{ category.id }}/edit" {% else %} action="/categories/edit" {% endif %}>
                 <div>
                     <label>
                         Category Name:
-                        <input name="name" class="text-input" type="text" maxlength="64" required>
+                        <input name="name" class="text-input" type="text" maxlength="64" {% if category %} value="{{ category.cat_name }}" {% endif %} required>
                     </label>
                 </div>
                 <div>
                     <label>
                         Category Description:
-                        <textarea name="desc" style="resize: none;" class="text-input" maxlength="128" required></textarea>
+                        <textarea name="desc" style="resize: none;" class="text-input" maxlength="128" required>{% if category %}{{ category.cat_desc }}{% endif %}</textarea>
                     </label>
                 </div>
-                {% if parent_cat %}
+                {% if category %}
+                <div>
+                    <label>Parent Category:
+                        <select name="parent">
+                        {% for pcat in all_categories %}
+                            <option value="{{ pcat.id }}" {% if pcat.id == category.id %}selected{% endif %}>{{ pcat.cat_name }} ({{ pcat.id }})</option>
+                        {% endfor %}
+                        </select>
+                    </label>
+                </div>
+                You are editing {{ category.cat_name }}.
+                {% elif parent_cat %}
                 The category will be created as a subcategory of {{ parent_cat.cat_name }}.
                 <input type="hidden" name="parent" value="{{ parent_cat.id }}">
                 {% else %}
@@ -47,7 +69,7 @@
                 {% endif %}
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
-                <button class="form-btn" type="submit">Create</button>
+                <button class="form-btn" type="submit">Submit</button>
             </form>
         </div>
     </div>

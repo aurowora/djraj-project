@@ -34,6 +34,15 @@ class CategoryRepository:
                 await cur.execute(f"SELECT {_ROW_SPEC} FROM categories WHERE id = %s;", (cat_id, ))
                 return _maybe_row_to_category(await cur.fetchone())
 
+    async def get_all_categories(self) -> Tuple[Category, ...]:
+        """
+        Gets a list of all subcategories.
+        """
+        async with self.__db.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(f'SELECT {_ROW_SPEC} FROM categories ORDER BY id;')
+                return tuple(_maybe_row_to_category(cat) for cat in await cur.fetchall())
+
     async def get_subcategories_of_category(self, cat_id: Optional[int], include_hidden_in_cnt=True) -> AsyncGenerator[Tuple[Category, int], None]:
         """
         Returns a stream of (category, num_topics) objects that are children of the category given in `cat_id`.
