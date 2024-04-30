@@ -37,6 +37,9 @@ class Topic(BaseModel):
     def is_hidden(self):
         return self.flags & TOPIC_IS_HIDDEN == TOPIC_IS_HIDDEN
 
+    def is_pinned(self):
+        return self.flags & TOPIC_IS_PINNED == TOPIC_IS_PINNED
+
 
 _ROW_SPEC = 'threadID, parent_cat, userID, title, content, createdAt, flags'
 _ROW = Tuple[int, int, int, str, str, str, int]
@@ -282,6 +285,4 @@ class TopicRepository:
                     num_rows = await cur.execute(
                         'UPDATE threadsTable SET userID = %s, title = %s, content = %s, flags = %s, parent_cat = %s WHERE threadID = %s;',
                         (topic.author_id, topic.title, topic.content, topic.flags, topic.parent_cat, topic.topic_id))
-                    if num_rows < 1:
-                        raise KeyError(f'failed updating topic {topic.topic_id}: no such topic')
                     return topic.topic_id

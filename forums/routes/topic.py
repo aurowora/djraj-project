@@ -258,12 +258,14 @@ class TopicPatchSpec(BaseModel):
     set_category: Optional[int]
 
 
-@topic_router.patch('/{topic_id}')
-async def update_topic(req: Request, patch_spec: TopicPatchSpec, topic_id: int,
+@topic_router.post('/{topic_id}/edit')
+async def update_topic(req: Request, topic_id: int, title: Annotated[str, Form()],
+                       content: Annotated[str, Form()], csrf_token: Annotated[str, Form()],
+                       hide: Annotated[bool, Form()] = None, pin: Annotated[bool, Form()] = None,
+                       lock: Annotated[bool, Form()] = None, parent: Annotated[int, Form()] = None,
                        topic_repo: TopicRepository = Depends(get_topic_repo),
-                       user_repo: UserRepository = Depends(get_user_repo),
                        user: User = Depends(current_user)):
-    csrf_verify(req, patch_spec.csrf_token)
+    csrf_verify(req, csrf_token)
 
     # load topic
     topic = await topic_repo.get_topic_by_id(topic_id, include_hidden=user.is_moderator())
@@ -278,76 +280,38 @@ async def update_topic(req: Request, patch_spec: TopicPatchSpec, topic_id: int,
     if not user.is_moderator() and (topic.flags & (TOPIC_IS_HIDDEN | TOPIC_IS_LOCKED) != 0):
         raise HTTPException(status_code=403, detail='You do not have permission to do this.')
 
-    dirty = False
+    if not (0 < len(content) <= MAX_TOPIC_CONTENT_LEN) and __TOPIC_ALLOW_MOST_CHARS.match(content):
+        raise HTTPException(status_code=400, detail='Invalid content.')
+    if not (0 < len(title) <= MAX_TOPIC_TITLE_LEN) and __TOPIC_ALLOW_MOST_CHARS.match(title):
+        raise HTTPException(status_code=400, detail='Invalid title.')
 
     # Apply visibility change
-    if patch_spec.set_hide is not None:
-        if patch_spec.set_hide:
+    if user.is_moderator():
+        if hide:
             topic.flags |= TOPIC_IS_HIDDEN
-        elif user.is_moderator():
+        else:
             topic.flags &= ~TOPIC_IS_HIDDEN
-        else:  # the user is trying to un-hide a topic, but they are not a moderator
-            raise HTTPException(status_code=403, detail='You may not un-hide this topic.')
-        dirty = True
-
-    # Pin or unpin
-    if patch_spec.set_pin is not None:
-        # Only a moderator may alter the pin status of a topic.
-        if not user.is_moderator():
-            raise HTTPException(status_code=403, detail='You may not pin or unpin this topic.')
-
-        if patch_spec.set_pin:
+        if pin:
             topic.flags |= TOPIC_IS_PINNED
         else:
             topic.flags &= ~TOPIC_IS_PINNED
-        dirty = True
-
-    # change the content
-    # both the author and moderators are permitted to set the content
-    if patch_spec.set_content:
-        # validate topic length
-        if not (0 < len(patch_spec.set_content) <= MAX_TOPIC_CONTENT_LEN):
-            raise HTTPException(status_code=400, detail=f'Content must be between 0 and {MAX_TOPIC_CONTENT_LEN}.')
-
-        # validate that it only contains legal characters
-        if __TOPIC_ALLOW_MOST_CHARS.match(patch_spec.set_content):
-            raise HTTPException(status_code=400, detail='Invalid content.')
-        topic.content = patch_spec.set_content
-        dirty = True
-
-    # change the title
-    if patch_spec.set_title is not None:
-        if not (0 < len(patch_spec.set_title) <= MAX_TOPIC_TITLE_LEN):
-            raise HTTPException(status_code=400, detail=f'Title must be between 0 and {MAX_TOPIC_TITLE_LEN}.')
-
-        if __TOPIC_ALLOW_MOST_CHARS.match(patch_spec.set_title):
-            raise HTTPException(status_code=400, detail='Invalid title.')
-        topic.title = patch_spec.set_title
-        dirty = True
-
-    # change the category
-    if patch_spec.set_category and user.is_moderator():
-        topic.parent_cat = patch_spec.set_category
-        dirty = True
-
-    # lock or unlock
-    if patch_spec.set_locked is not None and user.is_moderator():
-        if patch_spec.set_locked:
+        if lock:
             topic.flags |= TOPIC_IS_LOCKED
         else:
             topic.flags &= ~TOPIC_IS_LOCKED
-        dirty = True
+        topic.parent_cat = parent
+
+    topic.title = title
+    topic.content = content
 
     # Commit if anything change
-    if dirty:
-        try:
-            await topic_repo.put_topic(topic)
-        except IntegrityError:
-            raise HTTPException(status_code=400,
-                                detail='Cannot set category of topic because the target category is not valid.')
+    try:
+        await topic_repo.put_topic(topic)
+    except IntegrityError:
+        raise HTTPException(status_code=400,
+                            detail='Cannot set category of topic because the target category is not valid.')
 
-    # TODO: figure out how to integrate this with the front end
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER, url=f'/topic/{topic_id}')
 
 
 @topic_router.post('/{topic_id}/reply')
@@ -407,6 +371,39 @@ class PostPatchSpec(BaseModel):
     set_hidden: Optional[bool]
 
     csrf_token: str
+
+
+@topic_router.get('/{topic_id}/edit')
+async def edit_topic_page(req: Request, topic_id: int,
+                          user: User = Depends(current_user),
+                          topic_repo: TopicRepository = Depends(get_topic_repo),
+                          csrf_token: str = Depends(generate_csrf_token),
+                          error: Optional[str] = None,
+                          tpl: Jinja2Templates = Depends(get_templates),
+                          cat_repo: CategoryRepository = Depends(get_category_repo)):
+    if user.is_restricted() and not user.is_moderator():
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='You do not have permission to do this.')
+
+    topic = await topic_repo.get_topic_by_id(topic_id, include_hidden=user.is_moderator())
+    if not topic:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='There is no such topic.')
+
+    if not user.is_moderator() and user.user_id != topic.author_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='You do not have permission to do this.')
+
+    all_categories = await cat_repo.get_all_categories()
+
+    ctx = {
+        'user': user,
+        'topic': topic,
+        'csrf_token': csrf_token,
+        'all_categories': all_categories,
+    }
+
+    if error:
+        ctx['error'] = error
+
+    return tpl.TemplateResponse(request=req, name='edit_topic.html', context=ctx)
 
 
 @topic_router.patch('/{topic_id}/{post_id}')
