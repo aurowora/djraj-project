@@ -81,7 +81,6 @@ class CategoryRepository:
         async with self.__db.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute('DELETE FROM categories WHERE id = %s LIMIT 1;', (cat_id, ))
-                return await cur.fetchone()[0]
 
     async def put_category(self, cat: Category) -> int:
         """

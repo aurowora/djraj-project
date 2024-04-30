@@ -41,7 +41,8 @@ def _desc_is_valid(desc: str):
 async def category_index(req: Request, cat_id: int, page: int = 1, user: User = Depends(current_user),
                          cat_repo: CategoryRepository = Depends(get_category_repo),
                          topic_repo: TopicRepository = Depends(get_topic_repo),
-                         tpl: Jinja2Templates = Depends(get_templates)):
+                         tpl: Jinja2Templates = Depends(get_templates),
+                         csrf_token: str = Depends(generate_csrf_token)):
     if page < 1:
         raise HTTPException(status_code=status.HTTP_303_SEE_OTHER,
                             detail='page number must be greater than 0', headers={'Location': '/'})
@@ -79,7 +80,8 @@ async def category_index(req: Request, cat_id: int, page: int = 1, user: User = 
         'total_results': total_results,
         'user': user,
         'bread': bread,
-        'pins': pins
+        'pins': pins,
+        'csrf_token': csrf_token
     }
 
     return tpl.TemplateResponse(req, name='cat_index.html', context=ctx)
@@ -166,7 +168,7 @@ async def create_category(
     return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER, url=f'/categories/{new_cat.id}')
 
 
-@cat_router.delete('/{cat_id}')
+@cat_router.get('/{cat_id}/delete')
 async def delete_category(
         req: Request,
         cat_id: int,

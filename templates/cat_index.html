@@ -51,7 +51,7 @@
                                 <a href="/new_category?child_of={{ category.id }}">Create Child</a>
                                 <a href="/categories/{{ category.id }}/edit">Edit</a>
                                 {% if children|length == 0 and total_results == 0 %}
-                                <a href="#">Delete</a>
+                                <a href="/categories/{{ category.id }}/delete?csrf_token={{ csrf_token }}">Delete</a>
                                 {% endif %}
                             </div>
                         {% endif %}
