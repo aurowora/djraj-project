@@ -37,7 +37,7 @@
             {% endif %}
 
 
-            <form method="post" {% if category %} action="/categories/{{ category.id }}/edit" {% else %} action="/categories/edit" {% endif %}>
+            <form method="post" {% if category %} action="/categories/{{ category.id }}/edit" {% else %} action="/categories/create" {% endif %}>
                 <div>
                     <label>
                         Category Name:
