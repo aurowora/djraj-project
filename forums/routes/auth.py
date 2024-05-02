@@ -232,7 +232,6 @@ def logout(req: Request):
 
 
 __VALIDATE_USERNAME = re.compile(r'^[0-9A-Za-z_]+$', flags=re.RegexFlag.UNICODE)
-# TODO: This regex probably needs to support more characters than just ASCII
 __VALIDATE_DISPLAY_NAME = re.compile(r'^[\w_ ]+$', flags=re.RegexFlag.UNICODE)
 is_valid_display_name = lambda disp: (0 < len(disp) < 64) and __VALIDATE_DISPLAY_NAME.match(disp) is not None
 is_valid_username = lambda username: (0 < len(username) <= 64) and __VALIDATE_USERNAME.match(username) is not None

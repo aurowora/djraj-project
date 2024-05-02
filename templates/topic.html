@@ -50,13 +50,23 @@
 
                         {% for attachment in t_attachments %}
                             <a href="/topic/{{attachment.thread}}/attachments/{{attachment.id}}">{{ attachment.filename }}</a>
+                            {% if user.is_moderator() or user.id == topic.author_id %}
+                                <form id="fda-{{topic.topic_id}}-{{attachment.id}}" action="/topic/delete_attachment" method="post" style="display: inline">
+                                    <input type="hidden" name="topic_id" value="{{topic.topic_id}}">
+                                    <input type="hidden" name="attachment_id" value="{{attachment.id}}">
+                                    <input type="hidden" name="csrf_token" value="{{csrf_token}}">
+                                    <a href="javascript:{}" onclick="document.getElementById('fda-{{topic.topic_id}}-{{attachment.id}}').submit()">[X]</a>
+                                </form>
+                            {% endif %}
                         {% endfor %}
                     </div>
                 {% endif %}
 
-                <div class="topic-actions">
-                    <a href="/topic/{{ topic.topic_id }}/edit">Edit Topic</a>
-                </div>
+                {% if user.is_moderator() or user.id == topic.author_id %}
+                    <div class="topic-actions">
+                        <a href="/topic/{{ topic.topic_id }}/edit">Edit Topic</a>
+                    </div>
+                {% endif %}
             </section>
 
             <!--<h4>Replies ({{ total_results }})</h4>-->
@@ -80,6 +90,15 @@
 
                             {% for attachment in p_attachments[post.post_id] %}
                                 <a href="/topic/{{post.topic_id}}/{{ attachment.post }}/attachments/{{attachment.id}}">{{ attachment.filename }}</a>
+                                {% if user.is_moderator() or user.id == post.author_id %}
+                                    <form id="fda-{{topic.topic_id}}-{{post.post_id}}-{{attachment.id}}" action="/topic/delete_attachment" method="post" style="display: inline">
+                                        <input type="hidden" name="topic_id" value="{{topic.topic_id}}">
+                                        <input type="hidden" name="post_id" value="{{post.post_id}}">
+                                        <input type="hidden" name="attachment_id" value="{{attachment.id}}">
+                                        <input type="hidden" name="csrf_token" value="{{csrf_token}}">
+                                        <a href="javascript:{}" onclick="document.getElementById('fda-{{topic.topic_id}}-{{post.post_id}}-{{attachment.id}}').submit()">[X]</a>
+                                    </form>
+                                {% endif %}
                             {% endfor %}
                         </div>
                         {% endif %}

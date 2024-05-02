@@ -456,6 +456,55 @@ async def edit_post(req: Request, topic_id: int, post_id: int, patch_spec: PostP
     return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER, url=f'/topic/{topic_id}/')
 
 
+@topic_router.post('/delete_attachment')
+async def detach_file(req: Request, topic_id: Annotated[int, Form()], csrf_token: Annotated[str, Form()], attachment_id: Annotated[int, Form()],
+                      post_id: Annotated[Optional[int], Form()] = None, user: User = Depends(current_user),
+                      topic_repo: TopicRepository = Depends(get_topic_repo), post_repo: PostRepository = Depends(get_post_repo),
+                      topic_atch_repo: TopicAttachmentRepository = Depends(get_topic_attach_repo), post_atch_repo: PostAttachmentRepository = Depends(get_post_attach_repo)):
+    csrf_verify(req, csrf_token)
+
+    # load the item
+    if post_id is not None:
+        ent = await post_repo.get_post_by_id(post_id, include_hidden=user.is_moderator())
+        # verify post is of topic
+        if ent.topic_id != topic_id:
+            # use the post's topic instead
+            topic_id = ent.topic_id
+    else:
+        ent = await topic_repo.get_topic_by_id(topic_id, include_hidden=user.is_moderator())
+    if ent is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='There is no such entity.')
+
+    # only moderators and the author of the item may remove attachments
+    if not (ent.author_id == user.user_id or user.is_moderator()):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='You do not have permission to do this.')
+
+    # load the attachment spec
+    if post_id is not None:
+        atch = await post_atch_repo.get_attachment(attachment_id)
+        # verify atch is of post
+        if atch.post != post_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Attachment does not belong to the specified post.')
+        # delete the attachment from the listing
+        await post_atch_repo.delete_attachment(attachment_id)
+    else:
+        atch = await topic_atch_repo.get_attachment(attachment_id)
+        # verify atch is of topic
+        if atch.thread != topic_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Attachment does not belong to the specified topic.')
+        # delete the attachment from the listing
+        await topic_atch_repo.delete_attachment(attachment_id)
+
+    # delete the attachment from the filesystem
+    path = os.path.join(req.app.state.cfg.storage.path, 'attachments', str(topic_id))
+    if post_id is not None:
+        path = os.path.join(path, '.posts', str(post_id))
+    path = os.path.join(path, atch.filename)
+    await async_unlink(path)
+
+    return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER, url=f'/topic/{topic_id}')
+
+
 async def create_attachment(req: Request, topic_id: int, filename: str, data: UploadFile, author: int,
                                   post: Optional[int] = None):
     """
