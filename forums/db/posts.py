@@ -19,6 +19,9 @@ class Post(BaseModel):
     created_at: Optional[datetime]
     flags: int
 
+    def is_hidden(self):
+        return self.flags & POST_IS_HIDDEN == POST_IS_HIDDEN
+
 
 _ROW_SPEC = 'postID, threadID, userID, content, createdAt, flags'
 _ROW = Tuple[int, int, int, str, str, str, int]
@@ -36,6 +39,9 @@ class PostWithAuthor(BaseModel):
     content: str
     created_at: Optional[datetime]
     flags: int
+
+    def is_hidden(self):
+        return self.flags & POST_IS_HIDDEN == POST_IS_HIDDEN
 
 
 def _maybe_row_to_post_author(row: Optional[tuple]) -> Optional[PostWithAuthor]:
@@ -103,7 +109,7 @@ class PostRepository:
                 else:
                     # createdAt deliberately excluded
                     num_rows = await cur.execute(
-                        'UPDATE threadsTable SET userID = %s, threadID = %s, content = %s, flags = %s WHERE threadID = %s;',
+                        'UPDATE postsTable SET userID = %s, threadID = %s, content = %s, flags = %s WHERE postID = %s;',
                         (post.author_id, post.topic_id, post.content, post.flags, post.post_id))
                     if num_rows < 1:
                         raise KeyError(f'failed updating topic {post.post_id}: no such topic')

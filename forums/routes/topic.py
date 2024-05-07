@@ -405,9 +405,83 @@ async def edit_topic_page(req: Request, topic_id: int,
 
     return tpl.TemplateResponse(request=req, name='edit_topic.html', context=ctx)
 
+@topic_router.get('/{topic_id}/{post_id}/edit')
+async def edit_post_page(req: Request, topic_id: int, post_id: int, error: Optional[str] = None,
+                         prev_page: int = 1,
+                         csrf_token: str = Depends(generate_csrf_token),
+                         user: User = Depends(current_user),
+                         topic_repo: TopicRepository = Depends(get_topic_repo),
+                         post_repo: PostRepository = Depends(get_post_repo),
+                         tpl: Jinja2Templates = Depends(get_templates)):
+    if user.is_restricted() and not user.is_moderator():
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='You do not have permission to do this.')
+
+    topic = await topic_repo.get_topic_by_id(topic_id, include_hidden=user.is_restricted())
+    if not topic:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='There is no such topic.')
+
+    post = await post_repo.get_post_by_id(post_id, include_hidden=user.is_moderator())
+    if not post or post.topic_id != topic_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='There is no such post.')
+
+    if not user.is_moderator() and user.user_id != post.author_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='You do not have permission to do this.')
+
+    ctx = {
+        'user': user,
+        'topic': topic,
+        'post': post,
+        'csrf_token': csrf_token,
+        'prev_page': prev_page
+    }
+
+    if error is not None:
+        ctx["error"] = error
+
+    return tpl.TemplateResponse(request=req, name='edit_post.html', context=ctx)
+
+
+@topic_router.post('/{topic_id}/{post_id}/edit')
+async def edit_post(req: Request, topic_id: int, post_id: int,
+                    content: Annotated[str, Form()], prev_page: Annotated[int, Form()],
+                    csrf_token: Annotated[str, Form()], hide: Annotated[bool, Form()] = None,
+                    user: User = Depends(current_user),
+                    topic_repo: TopicRepository = Depends(get_topic_repo),
+                    post_repo: PostRepository = Depends(get_post_repo)):
+    csrf_verify(req, csrf_token)
+
+    if user.is_restricted() and not user.is_moderator():
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='You do not have permission to do this.')
+
+    topic = await topic_repo.get_topic_by_id(topic_id, include_hidden=user.is_restricted())
+    if not topic:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='There is no such topic.')
+
+    post = await post_repo.get_post_by_id(post_id, include_hidden=user.is_moderator())
+    if not post or post.topic_id != topic_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='There is no such post.')
+
+    if not user.is_moderator() and user.user_id != post.author_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='You do not have permission to do this.')
+
+    if __TOPIC_ALLOW_MOST_CHARS.match(content) is not None or not (0 < len(content) <= MAX_TOPIC_CONTENT_LEN):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail='Post content is too long or contains illegal characters.')
+
+    post.content = content
+
+    if hide:
+        post.flags |= POST_IS_HIDDEN
+    elif user.is_moderator():
+        post.flags &= ~POST_IS_HIDDEN
+
+    await post_repo.put_post(post)
+
+    return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER, url=f'/topic/{topic_id}?page={prev_page}')
+
 
 @topic_router.patch('/{topic_id}/{post_id}')
-async def edit_post(req: Request, topic_id: int, post_id: int, patch_spec: PostPatchSpec,
+async def edit_post_ex(req: Request, topic_id: int, post_id: int, patch_spec: PostPatchSpec,
                     user: User = Depends(current_user), topic_repo: TopicRepository = Depends(get_topic_repo),
                     post_repo: PostRepository = Depends(get_post_repo)):
     # restricted users cannot edit posts
