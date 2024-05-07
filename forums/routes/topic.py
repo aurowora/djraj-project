@@ -417,7 +417,7 @@ async def edit_post_page(req: Request, topic_id: int, post_id: int, error: Optio
     if user.is_restricted() and not user.is_moderator():
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='You do not have permission to do this.')
 
-    topic = await topic_repo.get_topic_by_id(topic_id, include_hidden=user.is_restricted())
+    topic = await topic_repo.get_topic_by_id(topic_id, include_hidden=user.is_moderator())
     if not topic:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='There is no such topic.')
 
