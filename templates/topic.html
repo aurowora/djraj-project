@@ -65,6 +65,7 @@
                 {% if user.is_moderator() or user.id == topic.author_id %}
                     <div class="topic-actions">
                         <a href="/topic/{{ topic.topic_id }}/edit">Edit Topic</a>
+                        <a href="/topic/{{ topic.topic_id }}/add_attachment?topic_id={{ topic.topic_id }}&prev_page={{ current_page }}">Attach File</a>
                     </div>
                 {% endif %}
             </section>
@@ -108,7 +109,8 @@
 
                         {% if user.is_moderator() or user.id == post.author_id %}
                             <div class="post-actions">
-                                <a href="/topic/{{ topic.topic_id }}/{{ post.post_id }}/edit">Edit Post</a>
+                                <a href="/topic/{{ topic.topic_id }}/{{ post.post_id }}/edit?page={{ current_page }}">Edit Post</a>
+                                <a href="/topic/{{ topic.topic_id }}/add_attachment?post_id={{ post.post_id }}&prev_page={{ current_page }}">Attach File</a>
                             </div>
                         {% endif %}
                     </div>

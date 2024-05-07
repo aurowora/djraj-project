@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attach File - Forum</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+{% include 'header.html' %}
+<main>
+    <div class="container">
+        <div class="new-cat-form">
+            <a class="form-link" href="/topic/{{ topic.topic_id }}?page={{ prev_page }}">Go Back</a>
+
+            <h2>Add Attachment</h2>
+
+            {% if error %}
+                <div class="banner-error mb-2">
+                    {{ error }}
+                </div>
+            {% endif %}
+
+            <form method="post" action="/topic/{{ topic.topic_id }}/add_attachment" enctype="multipart/form-data">
+                <div>
+                    <label>
+                        Attachments:
+                        <input type="file" name="files" multiple>
+                    </label>
+                </div>
+
+                <br>
+
+                {% if post %}
+                You are attaching a file to a post in the topic <strong>{{ topic.title }}</strong>
+                <input type="hidden" name="post_id" value="{{ post.post_id }}">
+                {% else %}
+                You are attaching a file to a topic <strong>{{ topic.title }}</strong>
+                {% endif %}
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="prev_page" value="{{ prev_page }}">
+                <button class="form-btn" type="submit">Create</button>
+            </form>
+        </div>
+    </div>
+</main>
+{% include 'footer.html' %}
+</body>
+</html>

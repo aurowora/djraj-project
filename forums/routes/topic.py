@@ -530,6 +530,77 @@ async def detach_file(req: Request, topic_id: Annotated[int, Form()], csrf_token
     return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER, url=f'/topic/{topic_id}')
 
 
+@topic_router.get('/{topic_id}/add_attachment')
+async def attach_file_page(req: Request, topic_id: int, post_id: Optional[int] = None, error: str = None,
+                           prev_page: int = 1,
+                           user: User = Depends(current_user), csrf_token: str = Depends(generate_csrf_token),
+                           topic_repo: TopicRepository = Depends(get_topic_repo), post_repo: PostRepository = Depends(get_post_repo),
+                           tpl: Jinja2Templates = Depends(get_templates)):
+    ctx = {
+        'csrf_token': csrf_token,
+        'prev_page': prev_page,
+    }
+
+    if post_id is not None:
+        post = await post_repo.get_post_by_id(post_id, include_hidden=user.is_moderator())
+        if not post:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No such post exists.')
+        ctx["post"] = post
+        topic_id = post.topic_id
+
+    topic = await topic_repo.get_topic_by_id(topic_id, include_hidden=user.is_moderator())
+    if not topic:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No such topic exists.')
+    ctx["topic"] = topic
+
+    if error is not None:
+        ctx["error"] = error
+
+    return tpl.TemplateResponse(request=req, name='add_attachment.html', context=ctx)
+
+
+@topic_router.post('/{topic_id}/add_attachment')
+async def attach_file(req: Request, topic_id: int, csrf_token: Annotated[str, Form()],
+                      files: Annotated[List[UploadFile], File()], prev_page: Annotated[int, Form()],
+                      post_id: Annotated[int, Form()] = None, user: User = Depends(current_user),
+                      topic_repo: TopicRepository = Depends(get_topic_repo), post_repo: PostRepository = Depends(get_post_repo),
+                      topic_atch_repo: TopicAttachmentRepository = Depends(get_topic_attach_repo),
+                      post_atch_repo: PostAttachmentRepository = Depends(get_post_attach_repo)):
+    if user.is_restricted() and not user.is_moderator():
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='You do not have permission to do this.')
+
+    csrf_verify(req, csrf_token)
+
+    topic = await topic_repo.get_topic_by_id(topic_id, include_hidden=user.is_moderator())
+    if not topic:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No such topic exists.')
+
+    if post_id is not None:
+        post = await post_repo.get_post_by_id(post_id, include_hidden=user.is_moderator())
+        if not post:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No such post exists.')
+
+        if not user.is_moderator() and user.user_id != post.author_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='You do not have permission to do this.')
+    elif not user.is_moderator() and user.user_id != topic.author_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='You do not have permission to do this.')
+
+    # add the attachments
+    try:
+        for uploadf in files:
+            if uploadf.filename != "":
+                attach = await create_attachment(req, topic_id, uploadf.filename, uploadf, user.user_id, post=post_id)
+                if post_id is not None:
+                    await post_atch_repo.put_attachment(attach)
+                else:
+                    await topic_atch_repo.put_attachment(attach)
+    except Exception as e:
+        logging.error('file upload error', exc_info=e)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail='Error uploading file.')
+
+    return RedirectResponse(url=f'/topic/{topic_id}?page={prev_page}', status_code=status.HTTP_303_SEE_OTHER)
+
+
 async def create_attachment(req: Request, topic_id: int, filename: str, data: UploadFile, author: int,
                                   post: Optional[int] = None):
     """
