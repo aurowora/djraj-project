@@ -4,7 +4,7 @@ from typing import Optional, AsyncGenerator, Tuple, List, Any
 from aiomysql import Pool
 from pydantic import BaseModel, Field
 
-from forums.db.posts import PostRepository
+from forums.db.posts import PostRepository, POST_IS_HIDDEN
 from forums.db.utils import mysql_date_to_python, mysql_escape_like
 from forums.models import UserAPI
 
@@ -162,6 +162,7 @@ class TopicRepository:
         Returns a tuple like (total_results, (topics, ...))
         """
         where_clause = f'WHERE T.parent_cat = %s AND (T.flags & {TOPIC_IS_PINNED}) = 0' if include_hidden else f'WHERE parent_cat = %s AND (T.flags & {TOPIC_IS_HIDDEN}) = 0 AND (T.flags & {TOPIC_IS_PINNED}) = 0'
+        p_cond = f'AND P.flags & {POST_IS_HIDDEN} = 0' if not include_hidden else ''
 
         query_res = f'''
             WITH
@@ -171,7 +172,7 @@ class TopicRepository:
                         {where_clause}
                     ),
                 PCQ AS (
-                    SELECT TQ.*, COUNT(P.postID), MAX(P.createdAt) AS most_recent_repl FROM TQ LEFT OUTER JOIN postsTable AS P ON TQ.thr_id = P.threadID GROUP BY TQ.thr_id
+                    SELECT TQ.*, COUNT(P.postID), MAX(P.createdAt) AS most_recent_repl FROM TQ LEFT OUTER JOIN postsTable AS P ON TQ.thr_id = P.threadID {p_cond} GROUP BY TQ.thr_id
                 )
             SELECT * FROM PCQ
             ORDER BY PCQ.most_recent_repl DESC, PCQ.topic_created DESC, PCQ.topic_title LIMIT %s OFFSET %s;
