@@ -480,56 +480,6 @@ async def edit_post(req: Request, topic_id: int, post_id: int,
     return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER, url=f'/topic/{topic_id}?page={prev_page}')
 
 
-@topic_router.patch('/{topic_id}/{post_id}')
-async def edit_post_ex(req: Request, topic_id: int, post_id: int, patch_spec: PostPatchSpec,
-                    user: User = Depends(current_user), topic_repo: TopicRepository = Depends(get_topic_repo),
-                    post_repo: PostRepository = Depends(get_post_repo)):
-    # restricted users cannot edit posts
-    if user.is_restricted():
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='You do not have permission to do this.')
-
-    csrf_verify(req, patch_spec.csrf_token)
-
-    # load the topic and post
-    topic = await topic_repo.get_topic_by_id(topic_id, include_hidden=user.is_moderator())
-    post = await post_repo.get_post_by_id(post_id)
-    if not topic or not post:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Could not locate topic/post.')
-
-    # only the author and moderators may edit this
-    if post.author_id != user.user_id and not user.is_moderator():
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='You do not have permission to do this.')
-    # if the topic or post is hidden, only a moderator can change it
-    if (
-            topic.flags & (TOPIC_IS_HIDDEN | TOPIC_IS_LOCKED) != 0 or post.flags & POST_IS_HIDDEN == POST_IS_HIDDEN) and not user.is_moderator():
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='You do not have permission to do this.')
-
-    dirty = False
-
-    if patch_spec.set_content is not None:
-        if __TOPIC_ALLOW_MOST_CHARS.match(patch_spec.set_content) is not None or not (
-                0 < len(patch_spec.set_content) <= MAX_TOPIC_CONTENT_LEN):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                                detail='Post content is too long or contains illegal characters.')
-
-        post.content = patch_spec.set_content
-        dirty = True
-
-    if patch_spec.set_hidden is not None:
-        if patch_spec.set_hidden:
-            post.flags |= POST_IS_HIDDEN
-        elif user.is_moderator():
-            post.flags &= ~POST_IS_HIDDEN
-        else:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='You do not have permission to do this.')
-        dirty = True
-
-    if dirty:
-        await post_repo.put_post(post)
-
-    return RedirectResponse(status_code=status.HTTP_303_SEE_OTHER, url=f'/topic/{topic_id}/')
-
-
 @topic_router.post('/delete_attachment')
 async def detach_file(req: Request, topic_id: Annotated[int, Form()], csrf_token: Annotated[str, Form()], attachment_id: Annotated[int, Form()],
                       post_id: Annotated[Optional[int], Form()] = None, user: User = Depends(current_user),
