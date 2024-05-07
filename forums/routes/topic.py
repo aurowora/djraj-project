@@ -405,6 +405,7 @@ async def edit_topic_page(req: Request, topic_id: int,
 
     return tpl.TemplateResponse(request=req, name='edit_topic.html', context=ctx)
 
+
 @topic_router.get('/{topic_id}/{post_id}/edit')
 async def edit_post_page(req: Request, topic_id: int, post_id: int, error: Optional[str] = None,
                          prev_page: int = 1,
